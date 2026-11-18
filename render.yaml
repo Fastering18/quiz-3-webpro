@@ -5,12 +5,18 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: DB_URL
-        sync: false
+      - key: DB_HOST
+        value: gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_NAME
+        value: zstore_jsp
       - key: DB_USER
-        sync: false
+        value: 2YwCNykgsBcN7yV.root
       - key: DB_PASSWORD
         sync: false
+      - key: DB_SSL
+        value: "true"
       - key: SUMOPOD_BASE_URL
         value: https://api-pay-sandbox.sumopod.com
       - key: SUMOPOD_API_KEY
@@ -19,4 +25,3 @@ services:
         sync: false
       - key: PAYMENT_DEBUG_MODE
         value: "true"
-

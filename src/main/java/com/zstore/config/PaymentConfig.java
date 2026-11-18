@@ -31,7 +31,7 @@ public final class PaymentConfig {
         loadResource(props, "payment.local.properties");
 
         baseUrl = firstNonEmpty(
-                System.getenv("SUMOPOD_BASE_URL"),
+                EnvLoader.get("SUMOPOD_BASE_URL"),
                 props.getProperty("sumopod.base_url"),
                 DEFAULT_BASE_URL
         );
@@ -40,26 +40,26 @@ public final class PaymentConfig {
         }
 
         apiKey = firstNonEmpty(
-                System.getenv("SUMOPOD_API_KEY"),
+                EnvLoader.get("SUMOPOD_API_KEY"),
                 props.getProperty("sumopod.api_key"),
                 ""
         );
 
         webhookToken = firstNonEmpty(
-                System.getenv("SUMOPOD_WEBHOOK_TOKEN"),
+                EnvLoader.get("SUMOPOD_WEBHOOK_TOKEN"),
                 props.getProperty("sumopod.webhook_token"),
                 ""
         );
 
         String debugStr = firstNonEmpty(
-                System.getenv("PAYMENT_DEBUG_MODE"),
+                EnvLoader.get("PAYMENT_DEBUG_MODE"),
                 props.getProperty("payment.debug_mode"),
                 "true"
         );
         debugMode = Boolean.parseBoolean(debugStr.trim());
 
         String expStr = firstNonEmpty(
-                System.getenv("PAYMENT_EXPIRE_MINUTES"),
+                EnvLoader.get("PAYMENT_EXPIRE_MINUTES"),
                 props.getProperty("payment.expire_minutes"),
                 "60"
         );

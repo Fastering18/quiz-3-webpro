@@ -2,13 +2,17 @@ package com.zstore.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
 /**
- * Manages MySQL JDBC connections using environment variables with fallback to db.properties.
+ * Manages MySQL / TiDB JDBC connections using environment variables (.env or OS env),
+ * supporting both mysql:// URIs and jdbc:mysql:// URLs, with fallback to db.properties.
  */
 public final class DBConnection {
 
@@ -35,44 +39,107 @@ public final class DBConnection {
 
     private static void loadConfig() {
         Properties props = new Properties();
-        try (InputStream in = DBConnection.class.getClassLoader().getResourceAsStream("db.properties")) {
-            if (in != null) {
-                props.load(in);
-            }
-        } catch (IOException ignored) {
-            // Fall back to defaults and environment variables.
+        loadProps(props, "db.properties");
+        loadProps(props, "db.local.properties");
+
+        String rawUrl = firstNonEmpty(
+                EnvLoader.get("DB_URL"),
+                EnvLoader.get("DATABASE_URL")
+        );
+        String envHost = EnvLoader.get("DB_HOST");
+        String envPort = EnvLoader.get("DB_PORT");
+        String envName = EnvLoader.get("DB_NAME");
+        String envSsl = EnvLoader.get("DB_SSL");
+        String envUser = EnvLoader.get("DB_USER");
+        String envPass = EnvLoader.get("DB_PASSWORD");
+
+        if (!rawUrl.isEmpty() && rawUrl.startsWith("mysql://")) {
+            applyMysqlUri(rawUrl, envUser, envPass, envSsl);
+            return;
         }
 
-        String envUrl = System.getenv("DB_URL");
-        String envHost = System.getenv("DB_HOST");
-        String envPort = System.getenv("DB_PORT");
-        String envName = System.getenv("DB_NAME");
-        String envSsl = System.getenv("DB_SSL");
-
-        if (envUrl != null && !envUrl.isEmpty()) {
-            url = envUrl;
-        } else if (envHost != null && !envHost.isEmpty()) {
-            String port = (envPort != null && !envPort.isEmpty()) ? envPort : "3306";
-            String name = (envName != null && !envName.isEmpty()) ? envName : "zstore_jsp";
-            boolean useSsl = "true".equalsIgnoreCase(envSsl);
-            String sslParams = useSsl
-                    ? "sslMode=REQUIRED"
-                    : "useSSL=false&allowPublicKeyRetrieval=true";
-            url = "jdbc:mysql://" + envHost + ":" + port + "/" + name
-                    + "?useUnicode=true&characterEncoding=UTF-8&" + sslParams + "&serverTimezone=Asia/Jakarta";
+        if (!rawUrl.isEmpty()) {
+            url = rawUrl;
+        } else if (envHost != null && !envHost.trim().isEmpty()) {
+            String host = envHost.trim();
+            String port = (envPort != null && !envPort.trim().isEmpty()) ? envPort.trim() : "3306";
+            String name = (envName != null && !envName.trim().isEmpty()) ? envName.trim() : "zstore_jsp";
+            boolean useSsl = "true".equalsIgnoreCase(envSsl)
+                    || "4000".equals(port)
+                    || host.toLowerCase().contains("tidbcloud.com");
+            url = buildJdbcUrl(host, port, name, useSsl);
         } else {
             url = props.getProperty("db.url", DEFAULT_URL);
         }
 
-        String envUser = System.getenv("DB_USER");
         user = (envUser != null && !envUser.isEmpty()) ? envUser : props.getProperty("db.user", DEFAULT_USER);
-
-        String envPass = System.getenv("DB_PASSWORD");
         password = (envPass != null) ? envPass : props.getProperty("db.password", DEFAULT_PASS);
+    }
+
+    private static void applyMysqlUri(String rawUri, String overrideUser, String overridePass, String envSsl) {
+        URI uri = URI.create(rawUri);
+        String host = uri.getHost();
+        int portNum = uri.getPort() > 0 ? uri.getPort() : 3306;
+        String port = String.valueOf(portNum);
+        String path = uri.getPath();
+        String dbName = (path != null && path.length() > 1) ? path.substring(1) : "zstore_jsp";
+
+        String uriUser = "";
+        String uriPass = "";
+        String userInfo = uri.getRawUserInfo();
+        if (userInfo != null && !userInfo.isEmpty()) {
+            int colon = userInfo.indexOf(':');
+            if (colon >= 0) {
+                uriUser = decode(userInfo.substring(0, colon));
+                uriPass = decode(userInfo.substring(colon + 1));
+            } else {
+                uriUser = decode(userInfo);
+            }
+        }
+
+        boolean useSsl = !"false".equalsIgnoreCase(envSsl)
+                && ("true".equalsIgnoreCase(envSsl)
+                || portNum == 4000
+                || (host != null && host.toLowerCase().contains("tidbcloud.com")));
+
+        url = buildJdbcUrl(host, port, dbName, useSsl);
+        user = (overrideUser != null && !overrideUser.isEmpty()) ? overrideUser : uriUser;
+        password = (overridePass != null && !overridePass.isEmpty()) ? overridePass : uriPass;
+    }
+
+    private static String buildJdbcUrl(String host, String port, String dbName, boolean useSsl) {
+        String sslParams = useSsl
+                ? "sslMode=VERIFY_IDENTITY&enabledTLSProtocols=TLSv1.2,TLSv1.3"
+                : "useSSL=false&allowPublicKeyRetrieval=true";
+        return "jdbc:mysql://" + host + ":" + port + "/" + dbName
+                + "?useUnicode=true&characterEncoding=UTF-8&" + sslParams
+                + "&serverTimezone=Asia/Jakarta";
+    }
+
+    private static void loadProps(Properties props, String resourceName) {
+        try (InputStream in = DBConnection.class.getClassLoader().getResourceAsStream(resourceName)) {
+            if (in != null) {
+                props.load(in);
+            }
+        } catch (IOException ignored) {
+            // Optional properties file.
+        }
+    }
+
+    private static String firstNonEmpty(String... values) {
+        for (String v : values) {
+            if (v != null && !v.trim().isEmpty()) {
+                return v.trim();
+            }
+        }
+        return "";
+    }
+
+    private static String decode(String s) {
+        return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(url, user, password);
     }
 }
-

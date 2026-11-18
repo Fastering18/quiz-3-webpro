@@ -60,6 +60,7 @@
                 <directory>src/main/resources</directory>
                 <excludes>
                     <exclude>payment.local.properties</exclude>
+                    <exclude>db.local.properties</exclude>
                 </excludes>
             </resource>
         </resources>
