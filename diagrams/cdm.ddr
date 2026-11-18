@@ -1,0 +1,82 @@
+Type: CDM
+Title: Z-Store Digital License Store (CDM)
+
+Entities:
+- Provider {
+    ID Provider: bigint [identifier]
+    Nama: varchar(100) [mandatory]
+    Thumbnail Img: varchar(300)
+  }
+- Level Pelanggan {
+    ID Level: bigint [identifier]
+    Nama Level: varchar(50) [mandatory]
+    Diskon Level: int [mandatory]
+    Harga Level: int [mandatory]
+  }
+- Pelanggan {
+    ID Pelanggan: bigint [identifier]
+    Nama Pelanggan: varchar(150) [mandatory]
+    Gmail Pelanggan: varchar(320) [mandatory]
+    Password Hash: varchar(255) [mandatory]
+    Role: varchar(20) [mandatory]
+    Reseller Valid Date: date
+    Total Pembelian: bigint [mandatory]
+    Saldo: bigint [mandatory]
+    Status Akun: varchar(20) [mandatory]
+  }
+- Produk {
+    ID Produk: bigint [identifier]
+    Nama Produk: varchar(120) [mandatory]
+    Harga Produk: int [mandatory]
+    Jenis Produk: varchar(20) [mandatory]
+    Status Produk: varchar(20) [mandatory]
+    Deskripsi: varchar(500)
+    Thumbnail Img: varchar(300)
+  }
+- Tags {
+    ID Tag: bigint [identifier]
+    Nama Tag: varchar(200) [mandatory]
+  }
+- Stocks {
+    ID Stk: bigint [identifier]
+    Kode Lisensi: varchar(500) [mandatory]
+    Credit Value: bigint [mandatory]
+    Claimed At: date
+    Expired At: date
+    Status: varchar(20) [mandatory]
+  }
+- Invoice {
+    ID Invoice: bigint [identifier]
+    Provider: varchar(30) [mandatory]
+    Provider Payment ID: varchar(150)
+    Payment Link: text
+    External ID: varchar(100)
+    Fee: int [mandatory]
+    Net Amount: bigint
+    Paid At: timestamp
+    Expires At: timestamp [mandatory]
+    Status: varchar(20) [mandatory]
+  }
+- Transaksi {
+    ID Trx: bigint [identifier]
+    Tanggal Trx: timestamp [mandatory]
+    Total Pembayaran: bigint [mandatory]
+    Metode Pembayaran: varchar(30) [mandatory]
+    Status: varchar(20) [mandatory]
+    Gmail Trx: varchar(320) [mandatory]
+    Nama Penerima: varchar(150)
+  }
+- Detail Transaksi {
+    ID DetailTrx: bigint [identifier]
+    Harga Beli: int [mandatory]
+  }
+
+Ref: Provider < Produk: provides
+Ref: Level Pelanggan < Pelanggan: classifies
+Ref: Produk <> Tags: tagged with
+Ref: Produk < Stocks: owns
+Ref: Pelanggan < Transaksi: places
+Ref: Invoice - Transaksi: bills
+Ref: Transaksi < Detail Transaksi: contains
+Ref: Stocks < Detail Transaksi: fulfills
+

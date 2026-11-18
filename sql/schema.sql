@@ -1,0 +1,123 @@
+-- Z-Store Digital License Key Store - MySQL / MariaDB Schema
+-- Ported from Website-Toko PostgreSQL schema to MySQL for JSP deployment
+
+CREATE DATABASE IF NOT EXISTS zstore_jsp
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE zstore_jsp;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS Detail_Transaksi;
+DROP TABLE IF EXISTS Transaksi;
+DROP TABLE IF EXISTS Invoice;
+DROP TABLE IF EXISTS Stocks;
+DROP TABLE IF EXISTS Product_Tags;
+DROP TABLE IF EXISTS Tags;
+DROP TABLE IF EXISTS Produk;
+DROP TABLE IF EXISTS Pelanggan;
+DROP TABLE IF EXISTS Level_Pelanggan;
+DROP TABLE IF EXISTS Provider;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE Provider (
+  ID_Provider BIGINT AUTO_INCREMENT PRIMARY KEY,
+  Nama VARCHAR(100) NOT NULL,
+  Thumbnail_Img VARCHAR(300)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Level_Pelanggan (
+  ID_Level BIGINT AUTO_INCREMENT PRIMARY KEY,
+  Nama_level VARCHAR(50) NOT NULL,
+  Diskon_level INT NOT NULL DEFAULT 0,
+  Harga_level INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Pelanggan (
+  ID_Pelanggan BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ID_Level BIGINT NOT NULL DEFAULT 1,
+  Nama_Pelanggan VARCHAR(150) NOT NULL,
+  Gmail_Pelanggan VARCHAR(320) NOT NULL UNIQUE,
+  Password_Hash VARCHAR(255) NOT NULL,
+  Role VARCHAR(20) NOT NULL DEFAULT 'Customer',
+  Reseller_Valid_Date DATE NULL,
+  Total_Pembelian BIGINT NOT NULL DEFAULT 0,
+  Saldo BIGINT NOT NULL DEFAULT 0,
+  Status_Akun VARCHAR(20) NOT NULL DEFAULT 'Active',
+  CONSTRAINT fk_pelanggan_level FOREIGN KEY (ID_Level) REFERENCES Level_Pelanggan (ID_Level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Produk (
+  ID_Produk BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ID_Provider BIGINT NOT NULL,
+  Nama_Produk VARCHAR(120) NOT NULL,
+  Harga_produk INT NOT NULL,
+  Jenis_Produk VARCHAR(20) NOT NULL DEFAULT 'Item',
+  Status_Produk VARCHAR(20) NOT NULL DEFAULT 'Available',
+  Deskripsi VARCHAR(500),
+  Thumbnail_Img VARCHAR(300),
+  CONSTRAINT fk_produk_provider FOREIGN KEY (ID_Provider) REFERENCES Provider (ID_Provider)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Tags (
+  ID_Tag BIGINT AUTO_INCREMENT PRIMARY KEY,
+  Nama_Tag VARCHAR(200) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Product_Tags (
+  ID_Produk BIGINT NOT NULL,
+  ID_Tag BIGINT NOT NULL,
+  PRIMARY KEY (ID_Produk, ID_Tag),
+  CONSTRAINT fk_pt_produk FOREIGN KEY (ID_Produk) REFERENCES Produk (ID_Produk) ON DELETE CASCADE,
+  CONSTRAINT fk_pt_tag FOREIGN KEY (ID_Tag) REFERENCES Tags (ID_Tag) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Stocks (
+  ID_Stk BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ID_Produk BIGINT NOT NULL,
+  kode_lisensi VARCHAR(500) NOT NULL,
+  Credit_Value BIGINT NOT NULL DEFAULT 0,
+  claimedAt DATE NULL,
+  expiredAt DATE NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Tersedia',
+  CONSTRAINT fk_stocks_produk FOREIGN KEY (ID_Produk) REFERENCES Produk (ID_Produk) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Invoice (
+  ID_Invoice BIGINT AUTO_INCREMENT PRIMARY KEY,
+  Provider VARCHAR(30) NOT NULL DEFAULT 'LOCAL',
+  Provider_Payment_ID VARCHAR(150) NULL UNIQUE,
+  Payment_Link TEXT,
+  External_ID VARCHAR(100) UNIQUE,
+  Fee INT NOT NULL DEFAULT 0,
+  Net_Amount BIGINT NULL,
+  Paid_At DATETIME NULL,
+  Expires_At DATETIME NOT NULL,
+  Status VARCHAR(20) NOT NULL DEFAULT 'Pending'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Transaksi (
+  ID_Trx BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ID_Pelanggan BIGINT NULL,
+  ID_Invoice BIGINT UNIQUE,
+  Tanggal_Trx TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  Total_Pembayaran BIGINT NOT NULL,
+  Metode_Pembayaran VARCHAR(30) NOT NULL,
+  Status VARCHAR(20) NOT NULL DEFAULT 'Unpaid',
+  Gmail_trx VARCHAR(320) NOT NULL,
+  Nama_Penerima VARCHAR(150),
+  CONSTRAINT fk_trx_pelanggan FOREIGN KEY (ID_Pelanggan) REFERENCES Pelanggan (ID_Pelanggan) ON DELETE SET NULL,
+  CONSTRAINT fk_trx_invoice FOREIGN KEY (ID_Invoice) REFERENCES Invoice (ID_Invoice) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE Detail_Transaksi (
+  ID_DetailTrx BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ID_Trx BIGINT NOT NULL,
+  ID_Stk BIGINT NOT NULL,
+  Harga_beli INT NOT NULL,
+  CONSTRAINT fk_detail_trx FOREIGN KEY (ID_Trx) REFERENCES Transaksi (ID_Trx) ON DELETE CASCADE,
+  CONSTRAINT fk_detail_stk FOREIGN KEY (ID_Stk) REFERENCES Stocks (ID_Stk)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

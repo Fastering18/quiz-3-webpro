@@ -1,0 +1,94 @@
+Type: PDM
+Title: Z-Store Digital License Store (PDM)
+
+Tables:
+- Provider {
+    ID_Provider: bigint [pk]
+    Nama: varchar(100) [not null]
+    Thumbnail_Img: varchar(300) [null]
+  }
+- Level_Pelanggan {
+    ID_Level: bigint [pk]
+    Nama_level: varchar(50) [not null]
+    Diskon_level: int [not null]
+    Harga_level: int [not null]
+  }
+- Pelanggan {
+    ID_Pelanggan: bigint [pk]
+    ID_Level: bigint [not null]
+    Nama_Pelanggan: varchar(150) [not null]
+    Gmail_Pelanggan: varchar(320) [unique, not null]
+    Password_Hash: varchar(255) [not null]
+    Role: varchar(20) [not null]
+    Reseller_Valid_Date: date [null]
+    Total_Pembelian: bigint [not null]
+    Saldo: bigint [not null]
+    Status_Akun: varchar(20) [not null]
+  }
+- Produk {
+    ID_Produk: bigint [pk]
+    ID_Provider: bigint [not null]
+    Nama_Produk: varchar(120) [not null]
+    Harga_produk: int [not null]
+    Jenis_Produk: varchar(20) [not null]
+    Status_Produk: varchar(20) [not null]
+    Deskripsi: varchar(500) [null]
+    Thumbnail_Img: varchar(300) [null]
+  }
+- Tags {
+    ID_Tag: bigint [pk]
+    Nama_Tag: varchar(200) [unique, not null]
+  }
+- Product_Tags {
+    ID_Produk: bigint [pk]
+    ID_Tag: bigint [pk]
+  }
+- Stocks {
+    ID_Stk: bigint [pk]
+    ID_Produk: bigint [not null]
+    kode_lisensi: varchar(500) [not null]
+    Credit_Value: bigint [not null]
+    claimedAt: date [null]
+    expiredAt: date [null]
+    status: varchar(20) [not null]
+  }
+- Invoice {
+    ID_Invoice: bigint [pk]
+    Provider: varchar(30) [not null]
+    Provider_Payment_ID: varchar(150) [unique, null]
+    Payment_Link: text [null]
+    External_ID: varchar(100) [unique, null]
+    Fee: int [not null]
+    Net_Amount: bigint [null]
+    Paid_At: datetime [null]
+    Expires_At: datetime [not null]
+    Status: varchar(20) [not null]
+  }
+- Transaksi {
+    ID_Trx: bigint [pk]
+    ID_Pelanggan: bigint [null]
+    ID_Invoice: bigint [unique, null]
+    Tanggal_Trx: timestamp [not null]
+    Total_Pembayaran: bigint [not null]
+    Metode_Pembayaran: varchar(30) [not null]
+    Status: varchar(20) [not null]
+    Gmail_trx: varchar(320) [not null]
+    Nama_Penerima: varchar(150) [null]
+  }
+- Detail_Transaksi {
+    ID_DetailTrx: bigint [pk]
+    ID_Trx: bigint [not null]
+    ID_Stk: bigint [not null]
+    Harga_beli: int [not null]
+  }
+
+Ref: Provider.ID_Provider < Produk.ID_Provider
+Ref: Level_Pelanggan.ID_Level < Pelanggan.ID_Level
+Ref: Produk.ID_Produk < Product_Tags.ID_Produk
+Ref: Tags.ID_Tag < Product_Tags.ID_Tag
+Ref: Produk.ID_Produk < Stocks.ID_Produk
+Ref: Pelanggan.ID_Pelanggan < Transaksi.ID_Pelanggan
+Ref: Invoice.ID_Invoice - Transaksi.ID_Invoice
+Ref: Transaksi.ID_Trx < Detail_Transaksi.ID_Trx
+Ref: Stocks.ID_Stk < Detail_Transaksi.ID_Stk
+

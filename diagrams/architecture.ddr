@@ -1,0 +1,57 @@
+Type: Graph
+Title: Z-Store JSP System Architecture
+Direction: LR
+
+Graph {
+  customer: Customer [shape: actor]
+  admin: Store Admin [shape: actor, color: purple]
+  sumopod: Sumopod QRIS Gateway [shape: box, color: amber]
+  browser: Web Browser [shape: round]
+  tomcat: Apache Tomcat 8.5 [shape: round, color: blue]
+  filter: EncodingFilter UTF-8 [shape: pill, color: teal]
+  static_assets: Static Assets CSS and WebP [shape: box, color: gray]
+  home_srv: Home and Product Servlets [shape: round, color: blue]
+  auth_srv: AuthServlet [shape: round, color: blue]
+  order_srv: Checkout and Invoice Servlets [shape: round, color: blue]
+  webhook_srv: SumopodWebhookServlet [shape: round, color: orange]
+  expiry_worker: PaymentExpiryListener [shape: pill, color: amber]
+  dash_srv: DashboardServlet [shape: round, color: blue]
+  admin_srv: AdminServlet CRUD [shape: round, color: purple]
+  jsp: JSP and JSTL Views [shape: round, color: amber]
+  pwd: PasswordUtil PBKDF2 [shape: box, color: teal]
+  sumopod_cli: SumopodClient HTTP [shape: box, color: orange]
+  dao: JDBC DAO Layer [shape: box, color: purple]
+  db_conn: DBConnection JDBC [shape: pill, color: teal]
+  mysql: MySQL zstore_jsp [shape: cylinder, color: red]
+
+  customer -> browser: browses and orders
+  admin -> browser: manages store
+  browser -> tomcat: HTTP requests
+  tomcat -> static_assets: serves CSS and images
+  tomcat -> filter: routes dynamic requests
+  filter -> home_srv: /home and /product
+  filter -> auth_srv: /login and /register
+  filter -> order_srv: /checkout and /invoice
+  filter -> webhook_srv: /webhooks/sumopod
+  filter -> dash_srv: /dashboard
+  filter -> admin_srv: /admin
+  auth_srv -> pwd: hashes and verifies
+  home_srv -> dao: reads catalog
+  auth_srv -> dao: reads and creates users
+  order_srv -> dao: atomic checkout and invoice
+  dao -> sumopod_cli: creates QRIS payment
+  sumopod_cli -> sumopod: POST /api/v1/payments
+  sumopod -> webhook_srv: webhook settlement [dashed]
+  webhook_srv -> dao: applies PAID FAILED EXPIRED
+  expiry_worker -> dao: expires stale Pending orders [dashed]
+  dash_srv -> dao: updates profile and balance
+  admin_srv -> dao: full entity CRUD
+  home_srv -> jsp: forwards model [dashed]
+  auth_srv -> jsp: forwards views [dashed]
+  order_srv -> jsp: forwards invoice [dashed]
+  dash_srv -> jsp: forwards dashboard [dashed]
+  admin_srv -> jsp: forwards admin panel [dashed]
+  jsp -> browser: renders HTML response
+  dao -> db_conn: PreparedStatement
+  db_conn -> mysql: SQL over TCP 3306
+}

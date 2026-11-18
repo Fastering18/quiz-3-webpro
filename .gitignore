@@ -1,0 +1,12 @@
+target/
+src/main/webapp/WEB-INF/classes/
+src/main/resources/payment.local.properties
+.env
+*.class
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+task.pdf

@@ -1,0 +1,89 @@
+Type: ERD
+Title: Z-Store Digital License Store (Chen ERD)
+
+Entities:
+- Provider {
+    ID Provider *
+    Nama
+    Thumbnail Img
+  }
+- Level Pelanggan {
+    ID Level *
+    Nama Level
+    Diskon Level
+    Harga Level
+  }
+- Pelanggan {
+    ID Pelanggan *
+    ID Level **
+    Nama Pelanggan
+    Gmail Pelanggan
+    Password Hash
+    Role
+    Saldo
+    Total Pembelian #
+    Status Akun
+  }
+- Produk {
+    ID Produk *
+    ID Provider **
+    Nama Produk
+    Harga Produk
+    Jenis Produk
+    Status Produk
+    Deskripsi
+    Thumbnail Img
+    Available Stock #
+  }
+- Tags {
+    ID Tag *
+    Nama Tag
+  }
+- Stock {
+    ID Stk *
+    ID Produk **
+    Kode Lisensi
+    Claimed At
+    Expired At
+    Status
+  }
+- Invoice {
+    ID Invoice *
+    Provider
+    Provider Payment ID
+    External ID
+    Payment Link
+    Fee
+    Net Amount
+    Paid At
+    Expires At
+    Status
+  }
+- Transaksi {
+    ID Trx *
+    ID Pelanggan **
+    ID Invoice **
+    Tanggal Trx
+    Total Pembayaran
+    Metode Pembayaran
+    Status
+    Gmail Trx
+    Nama Penerima
+  }
+- Detail Transaksi {
+    ID DetailTrx *
+    ID Trx **
+    ID Stk **
+    Harga Beli
+  }
+
+Relations:
+- Provides { Provider: 1; Produk: N }
+- Has Level { Level Pelanggan: 1; Pelanggan: N }
+- Tagged With { Produk: M; Tags: N }
+- Has Stock { Produk: 1; Stock: N }
+- Places { Pelanggan: 0..1; Transaksi: N }
+- Bills { Invoice: 1; Transaksi: 1 }
+- Contains { Transaksi: 1; Detail Transaksi: N }
+- Allocates { Stock: 1; Detail Transaksi: N }
+
