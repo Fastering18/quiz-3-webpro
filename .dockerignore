@@ -1,0 +1,11 @@
+.git/
+target/
+src/main/webapp/WEB-INF/classes/
+src/main/resources/payment.local.properties
+.env
+diagrams/
+task.pdf
+README.md
+*.ps1
+*.log
+

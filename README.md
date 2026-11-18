@@ -63,6 +63,9 @@ Update this table with your group details before exporting `Report.PDF`:
 
 ```text
 quiz-3-webpro/
+├── Dockerfile                              # Multi-stage Maven + Tomcat 9 build for Render
+├── .dockerignore                           # Excludes local classes, secrets, and PDFs from Docker build
+├── render.yaml                             # Render Web Service blueprint (Docker + /health)
 ├── build.ps1                               # Compiles Java sources with javac and packages target/zstore.war
 ├── pom.xml                                 # Maven WAR configuration (Java 17, Servlet 3.1, JSTL 1.2, MySQL)
 ├── diagrams/
@@ -75,18 +78,21 @@ quiz-3-webpro/
 │   └── seed.sql                            # 8 providers, 3 levels, 2 demo accounts, 98 products, 10 tags, 296 stocks
 └── src/main/
     ├── java/com/zstore/
-    │   ├── config/DBConnection.java        # JDBC connection loader (env vars + db.properties)
+    │   ├── config/                         # DBConnection.java, PaymentConfig.java
+    │   ├── payment/                        # SumopodClient.java (QRIS client and webhook parser)
     │   ├── util/                           # PasswordUtil (PBKDF2), FormatUtil
     │   ├── model/                          # JavaBeans matching the 9 database entities
     │   ├── dao/                            # PreparedStatement DAOs (Provider, Produk, Tag, Stock, Pelanggan, Transaksi)
-    │   └── servlet/                        # MVC Controllers (Home, Product, Auth, Checkout, Invoice, Dashboard, Admin)
-    ├── resources/db.properties             # Default local MySQL configuration
+    │   └── servlet/                        # MVC Controllers, SumopodWebhookServlet, PaymentExpiryListener, HealthServlet
+    ├── resources/
+    │   ├── db.properties                   # Default local MySQL configuration
+    │   └── payment.properties              # Sumopod sandbox and debug mode settings
     └── webapp/
         ├── index.jsp                       # Forwards welcome request to /home
         ├── static/                         # CSS (zstore.css) and product/provider WebP images
         └── WEB-INF/
-            ├── web.xml                     # Servlet mappings, UTF-8 encoding filter, 404 handler
-            ├── lib/                        # mysql-connector-j-8.0.33.jar, taglibs-standard 1.2.5
+            ├── web.xml                     # Servlet mappings, listener, UTF-8 encoding filter, 404 handler
+            ├── lib/                        # mysql-connector-j-8.0.33.jar, gson-2.10.1.jar, taglibs-standard 1.2.5
             └── views/                      # JSP views and shared header.jspf / footer.jspf fragments
 ```
 
@@ -105,6 +111,11 @@ quiz-3-webpro/
    & "D:\Program Files\xampp\mysql\bin\mysql.exe" -u root --default-character-set=utf8mb4 -e "source d:/Projects/Webs/quiz-3-webpro/sql/schema.sql; source d:/Projects/Webs/quiz-3-webpro/sql/seed.sql;"
    ```
    *(If your MySQL credentials differ, update `src/main/resources/db.properties` or set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` environment variables.)*
+
+### Step 1b: Configure Sumopod Sandbox Payment (Optional, for Live QRIS Testing)
+1. Copy `src/main/resources/payment.properties` to `src/main/resources/payment.local.properties` (gitignored), or set environment variables `SUMOPOD_BASE_URL`, `SUMOPOD_API_KEY`, and `SUMOPOD_WEBHOOK_TOKEN`.
+2. In your Sumopod Dashboard (`Managed Payment -> Settings`), keep **"Charge fee to customer"** OFF, set the sandbox base URL to `https://api-pay-sandbox.sumopod.com`, and point the webhook URL to `https://<your-public-url>/zstore/webhooks/sumopod`.
+3. When `payment.debug_mode=true` (default), the invoice page also shows local webhook simulation buttons (`PAID`, `FAILED`, `EXPIRED`) for offline testing without a public tunnel.
 
 ### Step 2: Build the WAR Archive
 Run the build script (does not require Maven):
@@ -129,7 +140,28 @@ This produces `target/zstore.war`.
 
 ---
 
-## 6. Changes Made from the Original `Website-Toko`
+## 6. Deploy to Render (Docker + Cloud MySQL)
+
+1. **Create a Cloud MySQL Database** (for example TiDB Cloud Serverless or Aiven free tier) and import the `CREATE TABLE` statements from `sql/schema.sql` and data inserts from `sql/seed.sql`.
+   *(If your database provider gives a fixed database name such as `defaultdb` or `test` without `CREATE DATABASE` permission, skip the `CREATE DATABASE` and `USE` lines and run the remaining SQL directly in your target database.)*
+2. **Deploy Web Service on Render:**
+   - Push this repository to GitHub (`task.pdf` and `payment.local.properties` are excluded via `.gitignore`).
+   - In Render, choose **New + -> Web Service** (or Blueprint using `render.yaml`), select this repository, and keep **Runtime: Docker**.
+   - Set these Environment Variables in Render:
+     - `DB_URL` (or `DB_HOST`, `DB_PORT`, `DB_NAME`, and `DB_SSL=true` if TLS is required)
+     - `DB_USER`
+     - `DB_PASSWORD`
+     - `SUMOPOD_BASE_URL` (`https://api-pay-sandbox.sumopod.com`)
+     - `SUMOPOD_API_KEY`
+     - `SUMOPOD_WEBHOOK_TOKEN`
+     - `PAYMENT_DEBUG_MODE` (`true`)
+3. **Update Sumopod Webhook URL:**
+   - Because `Dockerfile` deploys the WAR as `ROOT.war`, the webhook endpoint on Render is:
+     `https://<your-service>.onrender.com/webhooks/sumopod`
+
+---
+
+## 7. Changes Made from the Original `Website-Toko`
 
 1. Replaced Go (`gin`, `gorm`) handlers and PostgreSQL queries with Java Servlets, JDBC DAOs, and MySQL queries.
 2. Replaced Go `html/template` files with JSP + JSTL views under `WEB-INF/views/` sharing common `header.jspf` and `footer.jspf` fragments.

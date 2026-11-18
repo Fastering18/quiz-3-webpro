@@ -5,15 +5,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.zstore.config.PaymentConfig;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -30,9 +30,7 @@ public class SumopodClient {
     public static final String PAYMENT_METHOD_QRIS = "QRIS";
 
     private static final Gson GSON = new Gson();
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+    private static final int TIMEOUT_MS = 10000;
 
     public static class PaymentResult {
         private final String paymentId;
@@ -89,8 +87,7 @@ public class SumopodClient {
         return PaymentConfig.isSumopodConfigured();
     }
 
-    public PaymentResult createPayment(String orderId, long amount, int expiresInHours)
-            throws IOException, InterruptedException {
+    public PaymentResult createPayment(String orderId, long amount, int expiresInHours) throws IOException {
         if (!PaymentConfig.isSumopodConfigured()) {
             throw new IllegalStateException("SUMOPOD_API_KEY belum dikonfigurasi");
         }
@@ -104,35 +101,46 @@ public class SumopodClient {
             payload.put("expires_in_hours", Math.min(24, expiresInHours));
         }
 
-        String jsonBody = GSON.toJson(payload);
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(PaymentConfig.getBaseUrl() + "/api/v1/payments"))
-                .timeout(Duration.ofSeconds(15))
-                .header("Content-Type", "application/json")
-                .header("X-Api-Key", PaymentConfig.getApiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
-                .build();
+        byte[] bodyBytes = GSON.toJson(payload).getBytes(StandardCharsets.UTF_8);
+        URL url = new URL(PaymentConfig.getBaseUrl() + "/api/v1/payments");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        try {
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(TIMEOUT_MS);
+            conn.setReadTimeout(TIMEOUT_MS);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("X-Api-Key", PaymentConfig.getApiKey());
 
-        HttpResponse<String> res = HTTP.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (res.statusCode() < 200 || res.statusCode() > 299) {
-            throw new IOException("Sumopod API error (" + res.statusCode() + "): " + res.body());
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(bodyBytes);
+            }
+
+            int status = conn.getResponseCode();
+            InputStream stream = status >= 200 && status < 300 ? conn.getInputStream() : conn.getErrorStream();
+            String respBody = readAll(stream);
+            if (status < 200 || status > 299) {
+                throw new IOException("Sumopod API error (" + status + "): " + respBody);
+            }
+
+            JsonObject root = JsonParser.parseString(respBody).getAsJsonObject();
+            JsonObject target = pickPaymentObject(root);
+            if (target == null) {
+                throw new IOException("Sumopod response missing payment id or payment_link_url: " + respBody);
+            }
+
+            String id = firstNonBlank(getString(target, "payment_id"), getString(target, "id"));
+            String link = getString(target, "payment_link_url");
+            long respAmount = getLong(target, "amount", amount);
+            int fee = (int) getLong(target, "fee", 0);
+            long netAmount = getLong(target, "net_amount", 0);
+            String respStatus = getString(target, "status");
+            Timestamp expiresAt = parseIsoTimestamp(getString(target, "expires_at"));
+
+            return new PaymentResult(id, link, respAmount, fee, netAmount, respStatus, expiresAt);
+        } finally {
+            conn.disconnect();
         }
-
-        JsonObject root = JsonParser.parseString(res.body()).getAsJsonObject();
-        JsonObject target = pickPaymentObject(root);
-        if (target == null) {
-            throw new IOException("Sumopod response missing payment id or payment_link_url: " + res.body());
-        }
-
-        String id = firstNonBlank(getString(target, "payment_id"), getString(target, "id"));
-        String link = getString(target, "payment_link_url");
-        long respAmount = getLong(target, "amount", amount);
-        int fee = (int) getLong(target, "fee", 0);
-        long netAmount = getLong(target, "net_amount", 0);
-        String status = getString(target, "status");
-        Timestamp expiresAt = parseIsoTimestamp(getString(target, "expires_at"));
-
-        return new PaymentResult(id, link, respAmount, fee, netAmount, status, expiresAt);
     }
 
     public static boolean verifyWebhookToken(String headerToken) {
@@ -173,6 +181,26 @@ public class SumopodClient {
         }
         Timestamp paidAt = parseIsoTimestamp(getString(fields, "paid_at"));
         return new PaymentEvent(orderId, settled, netAmount, paidAt, true);
+    }
+
+    private static String readAll(InputStream stream) throws IOException {
+        if (stream == null) {
+            return "";
+        }
+        try (InputStream in = stream) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            int total = 0;
+            while ((n = in.read(buf)) != -1) {
+                total += n;
+                if (total > (1 << 20)) {
+                    break;
+                }
+                out.write(buf, 0, n);
+            }
+            return out.toString(StandardCharsets.UTF_8);
+        }
     }
 
     private static String resolveSettledStatus(String... labels) {

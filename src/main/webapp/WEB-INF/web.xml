@@ -97,6 +97,15 @@
         <url-pattern>/webhooks/sumopod</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>HealthServlet</servlet-name>
+        <servlet-class>com.zstore.servlet.HealthServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>HealthServlet</servlet-name>
+        <url-pattern>/health</url-pattern>
+    </servlet-mapping>
+
     <error-page>
         <error-code>404</error-code>
         <location>/WEB-INF/views/404.jsp</location>

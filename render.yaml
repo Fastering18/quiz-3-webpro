@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: zstore-jsp
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SUMOPOD_BASE_URL
+        value: https://api-pay-sandbox.sumopod.com
+      - key: SUMOPOD_API_KEY
+        sync: false
+      - key: SUMOPOD_WEBHOOK_TOKEN
+        sync: false
+      - key: PAYMENT_DEBUG_MODE
+        value: "true"
+

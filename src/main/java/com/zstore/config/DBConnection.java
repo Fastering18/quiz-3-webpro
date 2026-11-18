@@ -47,14 +47,19 @@ public final class DBConnection {
         String envHost = System.getenv("DB_HOST");
         String envPort = System.getenv("DB_PORT");
         String envName = System.getenv("DB_NAME");
+        String envSsl = System.getenv("DB_SSL");
 
         if (envUrl != null && !envUrl.isEmpty()) {
             url = envUrl;
         } else if (envHost != null && !envHost.isEmpty()) {
             String port = (envPort != null && !envPort.isEmpty()) ? envPort : "3306";
             String name = (envName != null && !envName.isEmpty()) ? envName : "zstore_jsp";
+            boolean useSsl = "true".equalsIgnoreCase(envSsl);
+            String sslParams = useSsl
+                    ? "sslMode=REQUIRED"
+                    : "useSSL=false&allowPublicKeyRetrieval=true";
             url = "jdbc:mysql://" + envHost + ":" + port + "/" + name
-                    + "?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Jakarta";
+                    + "?useUnicode=true&characterEncoding=UTF-8&" + sslParams + "&serverTimezone=Asia/Jakarta";
         } else {
             url = props.getProperty("db.url", DEFAULT_URL);
         }
