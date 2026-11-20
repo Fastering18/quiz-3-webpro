@@ -10,13 +10,11 @@ A Java Server Pages (JSP) and Servlet port of `Website-Toko`, an online digital 
 
 ### Work Distribution (Template for Report)
 
-Update this table with your group details before exporting `Report.PDF`:
-
 | Member Name | Student ID | Percentage | Contribution |
 | :--- | :--- | :--- | :--- |
-| Muhammad Brahmana Priambudi | 5025251129 | % |  |
-| Budiman Setiono | 5025251128 | % |  |
-| Muhammad Azka Asyrafany | 5025251131 | % |  |
+| Muhammad Brahmana Priambudi | 5025251129 | 33% | BackEnd |
+| Budiman Setiono | 5025251128 | 33% | FrontEnd |
+| Muhammad Azka Asyrafany | 5025251131 | 33% | Checking & Reporting |
 
 ---
 
