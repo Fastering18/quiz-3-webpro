@@ -23,6 +23,7 @@ Entities:
     Total Pembelian: bigint [mandatory]
     Saldo: bigint [mandatory]
     Status Akun: varchar(20) [mandatory]
+    Avatar Img: varchar(300)
   }
 - Produk {
     ID Produk: bigint [identifier]
@@ -79,4 +80,3 @@ Ref: Pelanggan < Transaksi: places
 Ref: Invoice - Transaksi: bills
 Ref: Transaksi < Detail Transaksi: contains
 Ref: Stocks < Detail Transaksi: fulfills
-

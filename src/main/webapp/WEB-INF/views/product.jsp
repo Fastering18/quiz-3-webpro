@@ -10,7 +10,7 @@
     <div class="row g-4 align-items-center">
       <div class="col-md-3 text-center">
         <div class="p-thumb mx-auto" style="height:170px; max-width:210px;">
-          <img src="${pageContext.request.contextPath}${product.thumbnailImg}"
+          <img src="<c:out value='${product.thumbnailSrc(pageContext.request.contextPath)}'/>"
                alt="<c:out value='${product.namaProduk}'/>"
                onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
         </div>
@@ -32,7 +32,7 @@
         <div class="d-flex flex-wrap gap-2" style="margin-top:14px;">
           <span class="pd-tag"><c:out value="${product.jenisProduk}" /></span>
           <c:forEach var="tag" items="${product.tags}">
-            <a href="${pageContext.request.contextPath}/home?tag=${tag.idTag}"
+            <a href="${pageContext.request.contextPath}/home?tags=${tag.idTag}"
                class="pd-tag text-decoration-none">
               <c:out value="${tag.namaTag}" />
             </a>

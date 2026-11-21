@@ -2,18 +2,18 @@ Type: PDM
 Title: Z-Store Digital License Store (PDM)
 
 Tables:
-- Provider {
+- Provider [x: 77, y: 334] {
     ID_Provider: bigint [pk]
     Nama: varchar(100) [not null]
     Thumbnail_Img: varchar(300) [null]
   }
-- Level_Pelanggan {
+- Level_Pelanggan [x: 1010, y: 950] {
     ID_Level: bigint [pk]
     Nama_level: varchar(50) [not null]
     Diskon_level: int [not null]
     Harga_level: int [not null]
   }
-- Pelanggan {
+- Pelanggan [x: 458, y: 920] {
     ID_Pelanggan: bigint [pk]
     ID_Level: bigint [not null]
     Nama_Pelanggan: varchar(150) [not null]
@@ -24,8 +24,9 @@ Tables:
     Total_Pembelian: bigint [not null]
     Saldo: bigint [not null]
     Status_Akun: varchar(20) [not null]
+    Avatar_Img: varchar(300) [null]
   }
-- Produk {
+- Produk [x: 605, y: 143] {
     ID_Produk: bigint [pk]
     ID_Provider: bigint [not null]
     Nama_Produk: varchar(120) [not null]
@@ -35,15 +36,15 @@ Tables:
     Deskripsi: varchar(500) [null]
     Thumbnail_Img: varchar(300) [null]
   }
-- Tags {
+- Tags [x: -100, y: 143] {
     ID_Tag: bigint [pk]
     Nama_Tag: varchar(200) [unique, not null]
   }
-- Product_Tags {
+- Product_Tags [x: 225, y: 120] {
     ID_Produk: bigint [pk]
     ID_Tag: bigint [pk]
   }
-- Stocks {
+- Stocks [x: 938, y: 255] {
     ID_Stk: bigint [pk]
     ID_Produk: bigint [not null]
     kode_lisensi: varchar(500) [not null]
@@ -52,7 +53,7 @@ Tables:
     expiredAt: date [null]
     status: varchar(20) [not null]
   }
-- Invoice {
+- Invoice [x: 325, y: 581] {
     ID_Invoice: bigint [pk]
     Provider: varchar(30) [not null]
     Provider_Payment_ID: varchar(150) [unique, null]
@@ -64,7 +65,7 @@ Tables:
     Expires_At: datetime [not null]
     Status: varchar(20) [not null]
   }
-- Transaksi {
+- Transaksi [x: 938, y: 581] {
     ID_Trx: bigint [pk]
     ID_Pelanggan: bigint [null]
     ID_Invoice: bigint [unique, null]
@@ -75,7 +76,7 @@ Tables:
     Gmail_trx: varchar(320) [not null]
     Nama_Penerima: varchar(150) [null]
   }
-- Detail_Transaksi {
+- Detail_Transaksi [x: 1330, y: 391] {
     ID_DetailTrx: bigint [pk]
     ID_Trx: bigint [not null]
     ID_Stk: bigint [not null]
@@ -91,4 +92,3 @@ Ref: Pelanggan.ID_Pelanggan < Transaksi.ID_Pelanggan
 Ref: Invoice.ID_Invoice - Transaksi.ID_Invoice
 Ref: Transaksi.ID_Trx < Detail_Transaksi.ID_Trx
 Ref: Stocks.ID_Stk < Detail_Transaksi.ID_Stk
-

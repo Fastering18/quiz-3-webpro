@@ -3,13 +3,17 @@ package com.zstore.dao;
 import com.zstore.config.DBConnection;
 import com.zstore.model.Produk;
 import com.zstore.model.Tag;
+import com.zstore.util.FormatUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class ProdukDAO {
 
@@ -28,32 +32,64 @@ public class ProdukDAO {
             + "ORDER BY p.ID_Produk ASC";
 
     public List<Produk> findAll() throws SQLException {
-        return findFiltered(0, 0, null);
+        return findFiltered(0, Collections.emptyList(), null);
     }
 
     public List<Produk> findFiltered(long providerId, long tagId, String query) throws SQLException {
+        List<Long> tagIds = tagId > 0 ? Collections.singletonList(tagId) : Collections.emptyList();
+        return findFiltered(providerId, tagIds, query);
+    }
+
+    public List<Produk> findFiltered(long providerId, List<Long> tagIds, String query) throws SQLException {
         StringBuilder sql = new StringBuilder(BASE_SELECT);
         List<Object> params = new ArrayList<>();
-
-        if (tagId > 0) {
-            sql.append("INNER JOIN Product_Tags pt ON pt.ID_Produk = p.ID_Produk ");
-        }
-
         List<String> where = new ArrayList<>();
+
         if (providerId > 0) {
             where.add("p.ID_Provider = ?");
             params.add(providerId);
         }
-        if (tagId > 0) {
-            where.add("pt.ID_Tag = ?");
-            params.add(tagId);
+
+        List<Long> cleanTagIds = new ArrayList<>();
+        if (tagIds != null) {
+            for (Long tid : tagIds) {
+                if (tid != null && tid > 0 && !cleanTagIds.contains(tid)) {
+                    cleanTagIds.add(tid);
+                }
+            }
         }
+        if (!cleanTagIds.isEmpty()) {
+            StringBuilder placeholders = new StringBuilder();
+            for (int i = 0; i < cleanTagIds.size(); i++) {
+                if (i > 0) {
+                    placeholders.append(',');
+                }
+                placeholders.append('?');
+                params.add(cleanTagIds.get(i));
+            }
+            where.add("p.ID_Produk IN ("
+                    + "SELECT pt.ID_Produk FROM Product_Tags pt "
+                    + "WHERE pt.ID_Tag IN (" + placeholders + ") "
+                    + "GROUP BY pt.ID_Produk "
+                    + "HAVING COUNT(DISTINCT pt.ID_Tag) = ?)");
+            params.add(cleanTagIds.size());
+        }
+
         if (query != null && !query.trim().isEmpty()) {
-            where.add("(LOWER(p.Nama_Produk) LIKE ? OR LOWER(pr.Nama) LIKE ? OR LOWER(p.Deskripsi) LIKE ?)");
-            String like = "%" + query.trim().toLowerCase() + "%";
-            params.add(like);
-            params.add(like);
-            params.add(like);
+            List<String> terms = FormatUtil.splitCommaTags(query);
+            for (String term : terms) {
+                String like = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                where.add("(LOWER(p.Nama_Produk) LIKE ? "
+                        + "OR LOWER(pr.Nama) LIKE ? "
+                        + "OR LOWER(COALESCE(p.Deskripsi, '')) LIKE ? "
+                        + "OR EXISTS (SELECT 1 FROM Product_Tags pt2 "
+                        + "INNER JOIN Tags t2 ON t2.ID_Tag = pt2.ID_Tag "
+                        + "WHERE pt2.ID_Produk = p.ID_Produk AND LOWER(t2.Nama_Tag) LIKE ?))");
+                params.add(like);
+                params.add(like);
+                params.add(like);
+                params.add(like);
+            }
         }
 
         if (!where.isEmpty()) {
@@ -68,6 +104,8 @@ public class ProdukDAO {
                 Object val = params.get(i);
                 if (val instanceof Long) {
                     ps.setLong(i + 1, (Long) val);
+                } else if (val instanceof Integer) {
+                    ps.setInt(i + 1, (Integer) val);
                 } else {
                     ps.setString(i + 1, String.valueOf(val));
                 }
@@ -75,6 +113,20 @@ public class ProdukDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     list.add(mapRow(rs));
+                }
+            }
+        }
+
+        if (!list.isEmpty()) {
+            List<Long> ids = new ArrayList<>(list.size());
+            for (Produk p : list) {
+                ids.add(p.getIdProduk());
+            }
+            Map<Long, List<Tag>> tagMap = new TagDAO().findByProductIds(ids);
+            for (Produk p : list) {
+                List<Tag> pTags = tagMap.get(p.getIdProduk());
+                if (pTags != null) {
+                    p.setTags(pTags);
                 }
             }
         }
@@ -204,4 +256,3 @@ public class ProdukDAO {
         return p;
     }
 }
-

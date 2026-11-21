@@ -11,3 +11,4 @@ src/main/resources/db.local.properties
 .DS_Store
 Thumbs.db
 task.pdf
+*.pem

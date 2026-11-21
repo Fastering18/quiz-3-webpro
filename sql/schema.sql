@@ -46,6 +46,7 @@ CREATE TABLE Pelanggan (
   Total_Pembelian BIGINT NOT NULL DEFAULT 0,
   Saldo BIGINT NOT NULL DEFAULT 0,
   Status_Akun VARCHAR(20) NOT NULL DEFAULT 'Active',
+  Avatar_Img VARCHAR(300) NULL,
   CONSTRAINT fk_pelanggan_level FOREIGN KEY (ID_Level) REFERENCES Level_Pelanggan (ID_Level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -1,0 +1,68 @@
+name: Build and Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build WAR with Maven
+        run: mvn -B -DskipTests clean package
+
+      - name: Verify WAR artifact
+        run: test -f target/zstore.war && ls -lh target/zstore.war
+
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload WAR and deployment files to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          PORT="${VPS_PORT:-22}"
+          TARGET="${VPS_USER}@${VPS_HOST}"
+          ssh -i ~/.ssh/vps_key -p "$PORT" "$TARGET" "mkdir -p ~/projek/webapps"
+          scp -i ~/.ssh/vps_key -P "$PORT" docker-compose.yml "${TARGET}:~/projek/docker-compose.yml"
+          scp -i ~/.ssh/vps_key -P "$PORT" deploy/Caddyfile "${TARGET}:~/projek/Caddyfile"
+          scp -i ~/.ssh/vps_key -P "$PORT" deploy/deploy.sh "${TARGET}:~/projek/deploy.sh"
+          scp -i ~/.ssh/vps_key -P "$PORT" target/zstore.war "${TARGET}:~/projek/webapps/ROOT.war.new"
+
+      - name: Restart service and verify health on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          PORT="${VPS_PORT:-22}"
+          TARGET="${VPS_USER}@${VPS_HOST}"
+          ssh -i ~/.ssh/vps_key -p "$PORT" "$TARGET" "sed -i 's/\r$//' ~/projek/deploy.sh ~/projek/Caddyfile && chmod +x ~/projek/deploy.sh && ~/projek/deploy.sh"

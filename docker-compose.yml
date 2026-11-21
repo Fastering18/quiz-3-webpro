@@ -1,0 +1,57 @@
+services:
+  zstore:
+    image: tomcat:9.0-jdk17-temurin
+    container_name: zstore
+    restart: unless-stopped
+    mem_limit: 460m
+    env_file:
+      - .env
+    environment:
+      JAVA_OPTS: "-XX:+UseSerialGC -Xms96m -Xmx320m -Djava.security.egd=file:/dev/./urandom"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./webapps:/deploy:ro
+    command: >
+      sh -c "rm -rf /usr/local/tomcat/webapps/* &&
+             cp /deploy/ROOT.war /usr/local/tomcat/webapps/ROOT.war &&
+             exec catalina.sh run"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: zstore-caddy
+    restart: unless-stopped
+    mem_limit: 96m
+    depends_on:
+      zstore:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

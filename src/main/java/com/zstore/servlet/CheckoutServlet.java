@@ -6,8 +6,11 @@ import com.zstore.dao.ProdukDAO;
 import com.zstore.dao.TransaksiDAO;
 import com.zstore.model.Pelanggan;
 import com.zstore.model.Produk;
+import com.zstore.model.Transaksi;
 import com.zstore.util.FormatUtil;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -51,10 +54,8 @@ public class CheckoutServlet extends HttpServlet {
             throws ServletException, IOException {
         long idProduk = FormatUtil.parseLongOrDefault(req.getParameter("id_produk"), 0);
         int qty = FormatUtil.parseIntOrDefault(req.getParameter("qty"), 1);
-        String method = FormatUtil.trimOrEmpty(req.getParameter("method"));
-        if (method.isEmpty()) {
-            method = "qris";
-        }
+        // Only Sumopod QRIS is supported.
+        String method = "qris";
 
         HttpSession session = req.getSession(false);
         Pelanggan currentUser;
@@ -89,7 +90,15 @@ public class CheckoutServlet extends HttpServlet {
             if (session != null && idPelanggan != null) {
                 session.setAttribute("user", pelangganDAO.findById(idPelanggan));
             }
-            resp.sendRedirect(req.getContextPath() + "/invoice?id=" + idTrx + "&created=1");
+            Transaksi created = transaksiDAO.findById(idTrx);
+            if (created != null && created.getInvoice() != null
+                    && created.getInvoice().getExternalId() != null
+                    && !created.getInvoice().getExternalId().isEmpty()) {
+                String encodedOrderId = URLEncoder.encode(created.getInvoice().getExternalId(), StandardCharsets.UTF_8);
+                resp.sendRedirect(req.getContextPath() + "/invoice?order_id=" + encodedOrderId + "&created=1");
+            } else {
+                resp.sendRedirect(req.getContextPath() + "/invoice?id=" + idTrx + "&created=1");
+            }
         } catch (IllegalStateException | IllegalArgumentException e) {
             req.setAttribute("error", e.getMessage());
             doGetWithId(req, resp, idProduk);

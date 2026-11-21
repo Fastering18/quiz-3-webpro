@@ -9,6 +9,8 @@ import com.zstore.model.Transaksi;
 import com.zstore.payment.SumopodClient;
 import com.zstore.util.FormatUtil;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,17 +29,24 @@ public class InvoiceServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        String orderId = FormatUtil.trimOrEmpty(req.getParameter("order_id"));
+        if (orderId.isEmpty()) {
+            orderId = FormatUtil.trimOrEmpty(req.getParameter("ext"));
+        }
         long trxId = FormatUtil.parseLongOrDefault(req.getParameter("id"), 0);
         String format = FormatUtil.trimOrEmpty(req.getParameter("format"));
 
-        if (trxId <= 0) {
-            req.setAttribute("pageTitle", "Cari Invoice | Z-Store");
+        if (orderId.isEmpty() && trxId <= 0) {
+            req.setAttribute("pageTitle", "Cek Invoice | Z-Store");
             req.getRequestDispatcher("/WEB-INF/views/invoice.jsp").forward(req, resp);
             return;
         }
 
         try {
-            Transaksi trx = transaksiDAO.findById(trxId);
+            Transaksi trx = !orderId.isEmpty()
+                    ? transaksiDAO.findByOrderId(orderId)
+                    : transaksiDAO.findById(trxId);
+
             if ("json".equalsIgnoreCase(format)) {
                 resp.setContentType("application/json; charset=UTF-8");
                 Map<String, Object> out = new HashMap<>();
@@ -46,6 +55,7 @@ public class InvoiceServlet extends HttpServlet {
                     out.put("status", "not_found");
                 } else {
                     out.put("id_trx", trx.getIdTrx());
+                    out.put("order_id", trx.getInvoice() != null ? trx.getInvoice().getExternalId() : "");
                     out.put("status", trx.getStatus());
                     out.put("invoice_status", trx.getInvoice() != null ? trx.getInvoice().getStatus() : "");
                 }
@@ -54,14 +64,19 @@ public class InvoiceServlet extends HttpServlet {
             }
 
             if (trx == null) {
-                req.setAttribute("error", "Invoice dengan ID #" + trxId + " tidak ditemukan.");
+                String label = !orderId.isEmpty() ? "Order ID \"" + orderId + "\"" : "ID #" + trxId;
+                req.setAttribute("error", "Invoice dengan " + label + " tidak ditemukan.");
+                req.setAttribute("pageTitle", "Cek Invoice | Z-Store");
             } else {
+                String resolvedOrderId = (trx.getInvoice() != null && trx.getInvoice().getExternalId() != null)
+                        ? trx.getInvoice().getExternalId()
+                        : ("#" + trx.getIdTrx());
                 req.setAttribute("trx", trx);
+                req.setAttribute("pageTitle", "Invoice " + resolvedOrderId + " | Z-Store");
             }
             req.setAttribute("debugMode", PaymentConfig.isDebugMode());
             req.setAttribute("sumopodConfigured", PaymentConfig.isSumopodConfigured());
             req.setAttribute("sumopodSandbox", PaymentConfig.isSandbox());
-            req.setAttribute("pageTitle", "Invoice #" + trxId + " | Z-Store");
             req.getRequestDispatcher("/WEB-INF/views/invoice.jsp").forward(req, resp);
         } catch (SQLException e) {
             throw new ServletException("Database error loading invoice", e);
@@ -71,33 +86,42 @@ public class InvoiceServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        String orderIdParam = FormatUtil.trimOrEmpty(req.getParameter("order_id"));
         long trxId = FormatUtil.parseLongOrDefault(req.getParameter("id_trx"), 0);
         String action = FormatUtil.trimOrEmpty(req.getParameter("action"));
 
-        if (trxId <= 0) {
+        if (orderIdParam.isEmpty() && trxId <= 0) {
             resp.sendRedirect(req.getContextPath() + "/invoice");
             return;
         }
 
         try {
-            Transaksi existing = transaksiDAO.findById(trxId);
+            Transaksi existing = !orderIdParam.isEmpty()
+                    ? transaksiDAO.findByOrderId(orderIdParam)
+                    : transaksiDAO.findById(trxId);
             if (existing == null) {
-                resp.sendRedirect(req.getContextPath() + "/invoice?id=" + trxId);
+                resp.sendRedirect(req.getContextPath() + "/invoice");
                 return;
             }
 
+            long resolvedId = existing.getIdTrx();
+            String orderId = (existing.getInvoice() != null && existing.getInvoice().getExternalId() != null)
+                    ? existing.getInvoice().getExternalId()
+                    : "";
+            String baseRedirect = !orderId.isEmpty()
+                    ? req.getContextPath() + "/invoice?order_id=" + URLEncoder.encode(orderId, StandardCharsets.UTF_8)
+                    : req.getContextPath() + "/invoice?id=" + resolvedId;
+
             if ("confirm".equals(action)) {
-                transaksiDAO.confirmPayment(trxId);
+                transaksiDAO.confirmPayment(resolvedId);
                 refreshSessionUser(req.getSession(false));
-                resp.sendRedirect(req.getContextPath() + "/invoice?id=" + trxId + "&paid=1");
+                resp.sendRedirect(baseRedirect + "&paid=1");
                 return;
             } else if ("cancel".equals(action) && !"Completed".equalsIgnoreCase(existing.getStatus())) {
-                transaksiDAO.deleteTransaction(trxId);
+                transaksiDAO.deleteTransaction(resolvedId);
                 resp.sendRedirect(req.getContextPath() + "/invoice?cancelled=1");
                 return;
-            } else if (PaymentConfig.isDebugMode() && action.startsWith("simulate_")
-                    && existing.getInvoice() != null) {
-                String orderId = existing.getInvoice().getExternalId();
+            } else if (PaymentConfig.isDebugMode() && action.startsWith("simulate_") && !orderId.isEmpty()) {
                 String simulatedJson = null;
                 if ("simulate_paid".equals(action)) {
                     simulatedJson = "{\"event\":\"payment.completed\",\"order_id\":\"" + orderId + "\"}";
@@ -110,11 +134,11 @@ public class InvoiceServlet extends HttpServlet {
                     SumopodClient.PaymentEvent ev = SumopodClient.parseWebhook(simulatedJson);
                     transaksiDAO.applyPaymentEvent(ev);
                     refreshSessionUser(req.getSession(false));
-                    resp.sendRedirect(req.getContextPath() + "/invoice?id=" + trxId + "&simulated=" + ev.getStatus());
+                    resp.sendRedirect(baseRedirect + "&simulated=" + ev.getStatus());
                     return;
                 }
             }
-            resp.sendRedirect(req.getContextPath() + "/invoice?id=" + trxId);
+            resp.sendRedirect(baseRedirect);
         } catch (SQLException e) {
             throw new ServletException("Database error updating invoice", e);
         }

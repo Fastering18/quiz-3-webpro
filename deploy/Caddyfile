@@ -1,0 +1,28 @@
+(zstore_app) {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800, immutable"
+
+	reverse_proxy zstore:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+{$APP_DOMAIN:20-189-75-210.sslip.io} {
+	import zstore_app
+}
+
+http:// {
+	import zstore_app
+}

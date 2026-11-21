@@ -79,7 +79,7 @@
               <c:otherwise>Tambah Produk Baru</c:otherwise>
             </c:choose>
           </h5>
-          <form method="POST" action="${pageContext.request.contextPath}/admin">
+          <form method="POST" action="${pageContext.request.contextPath}/admin" enctype="multipart/form-data">
             <input type="hidden" name="tab" value="products">
             <input type="hidden" name="action" value="${editingProduct != null ? 'product_update' : 'product_create'}">
             <c:if test="${editingProduct != null}">
@@ -125,9 +125,37 @@
             </div>
 
             <div class="mb-2">
-              <label class="form-label small fw-semibold">Path Thumbnail</label>
-              <input type="text" name="thumbnail_img" class="form-control form-dark"
-                     value="<c:out value='${editingProduct != null ? editingProduct.thumbnailImg : "/static/Image/Logo/Logo.png"}'/>">
+              <label class="form-label small fw-semibold">Image</label>
+              <c:set var="prodHasThumb" value="${editingProduct != null && editingProduct.hasCustomThumbnail}" />
+              <div class="img-upload-box" data-img-upload>
+                <input type="file" name="thumbnail_file" class="img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="hidden" name="remove_thumbnail" value="0" class="img-upload-remove-flag">
+                <div class="img-upload-trigger" role="button" tabindex="0" title="Pilih gambar produk">
+                  <span class="img-upload-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+                      <circle cx="8.5" cy="9.5" r="1.6"/>
+                      <path d="M21 16l-5.2-5.2a1.4 1.4 0 00-2 0L6 18.5"/>
+                    </svg>
+                  </span>
+                  <span class="img-upload-name ${prodHasThumb ? '' : 'is-placeholder'}"
+                        data-placeholder="Pilih gambar produk (PNG/JPG/WEBP)...">
+                    <c:choose>
+                      <c:when test="${prodHasThumb}"><c:out value="${editingProduct.thumbnailFileName}" /></c:when>
+                      <c:otherwise>Pilih gambar produk (PNG/JPG/WEBP)...</c:otherwise>
+                    </c:choose>
+                  </span>
+                </div>
+                <button type="button" class="img-upload-clear ${prodHasThumb ? '' : 'is-hidden'}"
+                        title="Hapus gambar" aria-label="Hapus gambar">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div class="mb-2">
@@ -136,23 +164,21 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Tags</label>
-              <div class="d-flex flex-wrap gap-2">
-                <c:forEach var="t" items="${tags}">
-                  <c:set var="isChecked" value="false" />
-                  <c:if test="${editingProduct != null}">
-                    <c:forEach var="et" items="${editingProduct.tags}">
-                      <c:if test="${et.idTag == t.idTag}">
-                        <c:set var="isChecked" value="true" />
-                      </c:if>
-                    </c:forEach>
-                  </c:if>
-                  <label class="small d-flex align-items-center gap-1">
-                    <input type="checkbox" name="tag_ids" value="${t.idTag}" ${isChecked ? 'checked' : ''}>
-                    <span><c:out value="${t.namaTag}" /></span>
-                  </label>
-                </c:forEach>
+              <label class="form-label small fw-semibold">Tags (pisahkan dengan koma)</label>
+              <div class="tag-input-box" data-tag-editor>
+                <input type="hidden" name="tags_csv" class="tag-hidden-csv"
+                       value="<c:out value='${editingProduct != null ? editingProduct.tagsCsv : ""}'/>">
+                <input type="text" class="tag-chip-field" placeholder="Ketik tag lalu koma atau Enter...">
               </div>
+              <c:if test="${not empty tags}">
+                <div class="tag-suggest-list" data-tag-suggestions>
+                  <c:forEach var="t" items="${tags}">
+                    <button type="button" class="tag-suggest-btn" data-tag-name="<c:out value='${t.namaTag}'/>">
+                      + <c:out value="${t.namaTag}" />
+                    </button>
+                  </c:forEach>
+                </div>
+              </c:if>
             </div>
 
             <div class="d-flex gap-2">
@@ -187,7 +213,23 @@
                 <c:forEach var="p" items="${products}">
                   <tr>
                     <td>#<c:out value="${p.idProduk}" /></td>
-                    <td class="fw-semibold"><c:out value="${p.namaProduk}" /></td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img src="<c:out value='${p.thumbnailSrc(pageContext.request.contextPath)}'/>"
+                             alt="" class="admin-tbl-thumb"
+                             onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
+                        <div>
+                          <div class="fw-semibold"><c:out value="${p.namaProduk}" /></div>
+                          <c:if test="${not empty p.tags}">
+                            <div class="p-tags-row" style="margin-top:2px;">
+                              <c:forEach var="pt" items="${p.tags}">
+                                <span class="p-tag-mini"><c:out value="${pt.namaTag}" /></span>
+                              </c:forEach>
+                            </div>
+                          </c:if>
+                        </div>
+                      </div>
+                    </td>
                     <td><c:out value="${p.providerNama}" /></td>
                     <td>Rp <fmt:formatNumber value="${p.hargaProduk}" groupingUsed="true" /></td>
                     <td><c:out value="${p.availableStock}" /></td>
@@ -223,7 +265,7 @@
           <h5 class="fw-bold text-white mb-3">
             ${editingProvider != null ? 'Edit Kategori / Provider' : 'Tambah Kategori Baru'}
           </h5>
-          <form method="POST" action="${pageContext.request.contextPath}/admin">
+          <form method="POST" action="${pageContext.request.contextPath}/admin" enctype="multipart/form-data">
             <input type="hidden" name="tab" value="providers">
             <input type="hidden" name="action" value="${editingProvider != null ? 'provider_update' : 'provider_create'}">
             <c:if test="${editingProvider != null}">
@@ -236,9 +278,37 @@
                      value="<c:out value='${editingProvider != null ? editingProvider.nama : ""}'/>" required>
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Path Thumbnail</label>
-              <input type="text" name="thumbnail_img" class="form-control form-dark"
-                     value="<c:out value='${editingProvider != null ? editingProvider.thumbnailImg : "/static/Image/Logo/Logo.png"}'/>">
+              <label class="form-label small fw-semibold">Image</label>
+              <c:set var="provHasThumb" value="${editingProvider != null && editingProvider.hasCustomThumbnail}" />
+              <div class="img-upload-box" data-img-upload>
+                <input type="file" name="thumbnail_file" class="img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="hidden" name="remove_thumbnail" value="0" class="img-upload-remove-flag">
+                <div class="img-upload-trigger" role="button" tabindex="0" title="Pilih gambar kategori">
+                  <span class="img-upload-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+                      <circle cx="8.5" cy="9.5" r="1.6"/>
+                      <path d="M21 16l-5.2-5.2a1.4 1.4 0 00-2 0L6 18.5"/>
+                    </svg>
+                  </span>
+                  <span class="img-upload-name ${provHasThumb ? '' : 'is-placeholder'}"
+                        data-placeholder="Pilih gambar (PNG/JPG/WEBP)...">
+                    <c:choose>
+                      <c:when test="${provHasThumb}"><c:out value="${editingProvider.thumbnailFileName}" /></c:when>
+                      <c:otherwise>Pilih gambar (PNG/JPG/WEBP)...</c:otherwise>
+                    </c:choose>
+                  </span>
+                </div>
+                <button type="button" class="img-upload-clear ${provHasThumb ? '' : 'is-hidden'}"
+                        title="Hapus gambar" aria-label="Hapus gambar">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-accent flex-grow-1">
@@ -269,7 +339,14 @@
                 <c:forEach var="pr" items="${providers}">
                   <tr>
                     <td>#<c:out value="${pr.idProvider}" /></td>
-                    <td class="fw-semibold"><c:out value="${pr.nama}" /></td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img src="<c:out value='${pr.thumbnailSrc(pageContext.request.contextPath)}'/>"
+                             alt="" class="admin-tbl-thumb"
+                             onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
+                        <span class="fw-semibold"><c:out value="${pr.nama}" /></span>
+                      </div>
+                    </td>
                     <td><c:out value="${pr.productCount}" /></td>
                     <td class="text-end text-nowrap">
                       <a href="${pageContext.request.contextPath}/admin?tab=providers&editProvider=${pr.idProvider}"
@@ -436,15 +513,34 @@
     <div class="row g-4">
       <div class="col-lg-4">
         <div class="glass-card p-4">
-          <h5 class="fw-bold text-white mb-3">Tambah Tag Baru</h5>
+          <h5 class="fw-bold text-white mb-3">
+            <c:choose>
+              <c:when test="${editingTag != null}">Edit Tag #<c:out value="${editingTag.idTag}" /></c:when>
+              <c:otherwise>Tambah Tag Baru</c:otherwise>
+            </c:choose>
+          </h5>
           <form method="POST" action="${pageContext.request.contextPath}/admin">
             <input type="hidden" name="tab" value="tags">
-            <input type="hidden" name="action" value="tag_create">
+            <input type="hidden" name="action" value="${editingTag != null ? 'tag_update' : 'tag_create'}">
+            <c:if test="${editingTag != null}">
+              <input type="hidden" name="id_tag" value="${editingTag.idTag}">
+            </c:if>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Nama Tag</label>
-              <input type="text" name="nama_tag" class="form-control form-dark" placeholder="Misal: Enterprise" required>
+              <label class="form-label small fw-semibold">
+                ${editingTag != null ? 'Nama Tag' : 'Nama Tag (bisa dipisah koma)'}
+              </label>
+              <input type="text" name="nama_tag" class="form-control form-dark"
+                     value="<c:out value='${editingTag != null ? editingTag.namaTag : ""}'/>"
+                     placeholder="${editingTag != null ? 'Nama tag baru' : 'Misal: Enterprise, Lifetime, Promo'}" required>
             </div>
-            <button type="submit" class="btn btn-accent w-100">Tambah Tag</button>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-accent flex-grow-1">
+                ${editingTag != null ? 'Simpan Perubahan' : 'Tambah Tag'}
+              </button>
+              <c:if test="${editingTag != null}">
+                <a href="${pageContext.request.contextPath}/admin?tab=tags" class="btn btn-ghost">Batal</a>
+              </c:if>
+            </div>
           </form>
         </div>
       </div>
@@ -468,7 +564,9 @@
                     <td>#<c:out value="${t.idTag}" /></td>
                     <td class="fw-semibold"><c:out value="${t.namaTag}" /></td>
                     <td><c:out value="${t.productCount}" /></td>
-                    <td class="text-end">
+                    <td class="text-end text-nowrap">
+                      <a href="${pageContext.request.contextPath}/admin?tab=tags&editTag=${t.idTag}"
+                         class="btn btn-sm btn-ghost">Edit</a>
                       <form method="POST" action="${pageContext.request.contextPath}/admin" class="d-inline"
                             onsubmit="return confirm('Hapus tag ini?');">
                         <input type="hidden" name="tab" value="tags">
@@ -568,7 +666,7 @@
         <table class="table table-dark-custom table-hover align-middle small">
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Order ID</th>
               <th>Pembeli</th>
               <th>Total</th>
               <th>Metode</th>
@@ -578,8 +676,12 @@
           </thead>
           <tbody>
             <c:forEach var="t" items="${transactions}">
+              <c:set var="adminOrderId" value="${t.invoice != null && not empty t.invoice.externalId ? t.invoice.externalId : '#'.concat(t.idTrx)}" />
               <tr>
-                <td>#<c:out value="${t.idTrx}" /></td>
+                <td>
+                  <div class="inv-order-id fw-semibold text-white"><c:out value="${adminOrderId}" /></div>
+                  <div class="text-muted-soft" style="font-size:0.72rem;">Trx #<c:out value="${t.idTrx}" /></div>
+                </td>
                 <td>
                   <div class="fw-semibold"><c:out value="${not empty t.namaPenerima ? t.namaPenerima : (not empty t.namaPelanggan ? t.namaPelanggan : 'Guest')}" /></div>
                   <div class="text-muted-soft"><c:out value="${t.gmailTrx}" /></div>
@@ -591,7 +693,7 @@
                     <input type="hidden" name="tab" value="transactions">
                     <input type="hidden" name="action" value="trx_update">
                     <input type="hidden" name="id_trx" value="${t.idTrx}">
-                    <select name="status" class="form-select form-select-sm form-dark" style="width:130px;">
+                    <select name="status" class="form-select form-select-sm form-dark" style="width:136px;">
                       <option value="Unpaid" ${t.status == 'Unpaid' ? 'selected' : ''}>Unpaid</option>
                       <option value="Completed" ${t.status == 'Completed' ? 'selected' : ''}>Completed</option>
                       <option value="Failed" ${t.status == 'Failed' ? 'selected' : ''}>Failed</option>
@@ -602,7 +704,8 @@
                   </form>
                 </td>
                 <td class="text-end text-nowrap">
-                  <a href="${pageContext.request.contextPath}/invoice?id=${t.idTrx}" class="btn btn-sm btn-ghost">Invoice</a>
+                  <a href="${pageContext.request.contextPath}/invoice?order_id=<c:out value='${t.invoice != null && not empty t.invoice.externalId ? t.invoice.externalId : ""}'/>"
+                     class="btn btn-sm btn-ghost">Invoice</a>
                   <form method="POST" action="${pageContext.request.contextPath}/admin" class="d-inline"
                         onsubmit="return confirm('Hapus transaksi ini?');">
                     <input type="hidden" name="tab" value="transactions">
@@ -622,23 +725,18 @@
 
 <script>
 /**
- * AdminCustomSelect — replaces every .form-dark <select> on the Admin page
- * with a custom dark dropdown while keeping the original <select> in the DOM
- * so that all form submissions, onchange events, and JSTL-selected values
- * continue to work without any changes to the backend.
+ * AdminCustomSelect — portaled fixed-position dark dropdown so menus inside
+ * scrollable tables (.admin-table-wrap) are never clipped or unreachable.
  */
 (function () {
   'use strict';
 
-  var SEARCH_THRESHOLD = 10; // show search input if option count exceeds this
-
-  /* Chevron SVG markup */
+  var SEARCH_THRESHOLD = 10;
   var CHEVRON = '<svg class="csd-chevron" viewBox="0 0 16 16" fill="none" '
     + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
     + 'stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>';
 
-  /* Track the currently open dropdown so we can close it when another opens */
-  var currentOpen = null;
+  var activeState = null;
 
   function init() {
     document.querySelectorAll('select.form-dark, select.form-select-sm.form-dark')
@@ -646,34 +744,36 @@
         buildCustomSelect(sel);
       });
 
-    /* Close on outside click */
     document.addEventListener('click', function (e) {
-      if (currentOpen && !currentOpen.contains(e.target)) {
-        closeMenu(currentOpen);
+      if (!activeState) return;
+      if (!activeState.wrap.contains(e.target) && !activeState.menu.contains(e.target)) {
+        closeActive();
       }
     });
 
-    /* Close on Esc */
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && currentOpen) {
-        closeMenu(currentOpen);
+      if (e.key === 'Escape' && activeState) {
+        closeActive();
       }
     });
+
+    window.addEventListener('resize', closeActive);
+    window.addEventListener('scroll', closeActive, true);
   }
 
   function buildCustomSelect(sel) {
-    /* ── Create wrapper ── */
     var wrap = document.createElement('div');
     wrap.className = 'csd-wrap';
     if (sel.classList.contains('form-select-sm')) {
       wrap.classList.add('csd-sm');
     }
+    if (sel.style.width) {
+      wrap.style.width = sel.style.width;
+    }
 
-    /* Insert wrapper before select, then move select inside */
     sel.parentNode.insertBefore(wrap, sel);
     wrap.appendChild(sel);
 
-    /* ── Trigger button ── */
     var trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.className = 'csd-trigger';
@@ -686,16 +786,12 @@
     trigger.insertAdjacentHTML('beforeend', CHEVRON);
     wrap.appendChild(trigger);
 
-    /* ── Menu panel ── */
     var menu = document.createElement('div');
-    menu.className = 'csd-menu';
+    menu.className = 'csd-menu csd-portal';
     menu.setAttribute('role', 'listbox');
 
-    var optionCount = sel.options.length;
-
-    /* Search input for long lists */
     var searchInput = null;
-    if (optionCount > SEARCH_THRESHOLD) {
+    if (sel.options.length > SEARCH_THRESHOLD) {
       var searchWrap = document.createElement('div');
       searchWrap.className = 'csd-search-wrap';
       searchInput = document.createElement('input');
@@ -710,9 +806,7 @@
     var list = document.createElement('div');
     list.className = 'csd-list';
     menu.appendChild(list);
-    wrap.appendChild(menu);
 
-    /* ── Build option items ── */
     function buildOptions() {
       list.innerHTML = '';
       Array.prototype.forEach.call(sel.options, function (opt) {
@@ -723,34 +817,30 @@
         item.setAttribute('role', 'option');
         item.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
 
-        item.addEventListener('click', function () {
-          selectOption(wrap, sel, trigger, label, list, item);
+        item.addEventListener('click', function (e) {
+          e.stopPropagation();
+          selectOption(sel, label, list, item);
         });
 
         list.appendChild(item);
       });
     }
 
-    /* ── Sync label from current <select> value ── */
     function syncLabel() {
       var selected = sel.options[sel.selectedIndex];
       label.textContent = selected ? selected.text : '';
     }
 
-    /* ── Toggle open/close ── */
     trigger.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (menu.classList.contains('is-open')) {
-        closeMenu(wrap);
+      if (activeState && activeState.wrap === wrap) {
+        closeActive();
       } else {
-        if (currentOpen && currentOpen !== wrap) {
-          closeMenu(currentOpen);
-        }
+        closeActive();
         openMenu(wrap, trigger, menu, searchInput, list);
       }
     });
 
-    /* ── Search filter ── */
     if (searchInput) {
       searchInput.addEventListener('input', function () {
         var q = searchInput.value.toLowerCase();
@@ -759,14 +849,9 @@
             q.length > 0 && item.textContent.toLowerCase().indexOf(q) === -1);
         });
       });
-
-      /* Prevent trigger-click closing when user clicks inside search */
-      searchInput.addEventListener('click', function (e) {
-        e.stopPropagation();
-      });
+      searchInput.addEventListener('click', function (e) { e.stopPropagation(); });
     }
 
-    /* ── Watch for programmatic changes to the original <select> ── */
     sel.addEventListener('change', function () {
       syncLabel();
       list.querySelectorAll('.csd-opt').forEach(function (item) {
@@ -776,83 +861,234 @@
       });
     });
 
-    /* Observe option changes (for dynamically populated selects) */
     var mo = new MutationObserver(function () {
       buildOptions();
       syncLabel();
     });
     mo.observe(sel, { childList: true });
 
-    /* Initial build */
     buildOptions();
     syncLabel();
   }
 
+  function positionMenu(trigger, menu) {
+    var rect = trigger.getBoundingClientRect();
+    var width = Math.max(rect.width, 144);
+    menu.style.width = width + 'px';
+
+    var left = rect.left;
+    if (left + width > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - width - 12);
+    }
+    menu.style.left = left + 'px';
+
+    var menuHeight = menu.offsetHeight || 200;
+    var spaceBelow = window.innerHeight - rect.bottom - 12;
+    var spaceAbove = rect.top - 12;
+    if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      menu.style.top = Math.max(12, rect.top - menuHeight - 6) + 'px';
+    } else {
+      menu.style.top = (rect.bottom + 6) + 'px';
+    }
+  }
+
   function openMenu(wrap, trigger, menu, searchInput, list) {
+    document.body.appendChild(menu);
     menu.classList.add('is-open');
     trigger.classList.add('is-open');
     trigger.setAttribute('aria-expanded', 'true');
-    currentOpen = wrap;
+    activeState = { wrap: wrap, trigger: trigger, menu: menu };
 
-    /* Reset search */
     if (searchInput) {
       searchInput.value = '';
       list.querySelectorAll('.csd-opt').forEach(function (item) {
         item.classList.remove('is-hidden');
       });
-      /* Focus search after open */
-      setTimeout(function () { searchInput.focus(); }, 30);
     }
 
-    /* Scroll selected item into view */
+    positionMenu(trigger, menu);
+
+    if (searchInput) {
+      setTimeout(function () { searchInput.focus(); }, 20);
+    }
+
     var selected = list.querySelector('.csd-opt.is-selected');
     if (selected) {
       selected.scrollIntoView({ block: 'nearest' });
     }
   }
 
-  function closeMenu(wrap) {
-    var trigger = wrap.querySelector('.csd-trigger');
-    var menu    = wrap.querySelector('.csd-menu');
-    if (!menu) return;
-    menu.classList.remove('is-open');
-    if (trigger) {
-      trigger.classList.remove('is-open');
-      trigger.setAttribute('aria-expanded', 'false');
+  function closeActive() {
+    if (!activeState) return;
+    activeState.menu.classList.remove('is-open');
+    if (activeState.menu.parentNode === document.body) {
+      document.body.removeChild(activeState.menu);
     }
-    if (currentOpen === wrap) currentOpen = null;
+    activeState.trigger.classList.remove('is-open');
+    activeState.trigger.setAttribute('aria-expanded', 'false');
+    activeState = null;
   }
 
-  function selectOption(wrap, sel, trigger, label, list, item) {
-    /* Update native <select> */
+  function selectOption(sel, label, list, item) {
     sel.value = item.dataset.value;
-
-    /* Update label */
     var selectedOpt = sel.options[sel.selectedIndex];
     label.textContent = selectedOpt ? selectedOpt.text : item.textContent;
 
-    /* Update selected state on items */
     list.querySelectorAll('.csd-opt').forEach(function (opt) {
       var isSel = opt === item;
       opt.classList.toggle('is-selected', isSel);
       opt.setAttribute('aria-selected', isSel ? 'true' : 'false');
     });
 
-    closeMenu(wrap);
-
-    /* Fire native change event so onchange="this.form.submit()" still works */
-    var ev = new Event('change', { bubbles: true });
-    sel.dispatchEvent(ev);
+    closeActive();
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  /* Run after DOM is ready */
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
+  /* Reusable Image Upload Box */
+  function initImageUploads() {
+    document.querySelectorAll('[data-img-upload]').forEach(function (box) {
+      var input = box.querySelector('.img-upload-input');
+      var trigger = box.querySelector('.img-upload-trigger');
+      var nameEl = box.querySelector('.img-upload-name');
+      var clearBtn = box.querySelector('.img-upload-clear');
+      var removeFlag = box.querySelector('.img-upload-remove-flag');
+      var placeholder = nameEl.dataset.placeholder || 'Pilih gambar...';
+
+      trigger.addEventListener('click', function () { input.click(); });
+      trigger.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+        nameEl.textContent = file.name;
+        nameEl.classList.remove('is-placeholder');
+        clearBtn.classList.remove('is-hidden');
+        removeFlag.value = '0';
+      });
+
+      clearBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        input.value = '';
+        removeFlag.value = '1';
+        nameEl.textContent = placeholder;
+        nameEl.classList.add('is-placeholder');
+        clearBtn.classList.add('is-hidden');
+      });
+    });
+  }
+
+  /* Modern Comma-Separated Tag Chip Editor */
+  function initTagEditors() {
+    document.querySelectorAll('[data-tag-editor]').forEach(function (box) {
+      var hidden = box.querySelector('.tag-hidden-csv');
+      var field = box.querySelector('.tag-chip-field');
+      var form = box.closest('form');
+      var tags = [];
+
+      function normalize(str) {
+        return str.trim().replace(/\s+/g, ' ');
+      }
+
+      function addTagsFromRaw(raw) {
+        if (!raw) return;
+        raw.split(',').forEach(function (part) {
+          var clean = normalize(part);
+          if (!clean) return;
+          var exists = tags.some(function (t) { return t.toLowerCase() === clean.toLowerCase(); });
+          if (!exists) {
+            tags.push(clean);
+          }
+        });
+        render();
+      }
+
+      function removeTag(index) {
+        tags.splice(index, 1);
+        render();
+      }
+
+      function render() {
+        box.querySelectorAll('.tag-chip').forEach(function (c) { c.remove(); });
+        tags.forEach(function (tag, idx) {
+          var chip = document.createElement('span');
+          chip.className = 'tag-chip';
+          chip.textContent = tag;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'tag-chip-remove';
+          btn.setAttribute('aria-label', 'Hapus tag ' + tag);
+          btn.textContent = '\u00d7';
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            removeTag(idx);
+          });
+          chip.appendChild(btn);
+          box.insertBefore(chip, field);
+        });
+        hidden.value = tags.join(', ');
+      }
+
+      if (hidden.value) {
+        addTagsFromRaw(hidden.value);
+      }
+
+      box.addEventListener('click', function () { field.focus(); });
+
+      field.addEventListener('keydown', function (e) {
+        if (e.key === ',' || e.key === 'Enter') {
+          e.preventDefault();
+          if (field.value.trim()) {
+            addTagsFromRaw(field.value);
+            field.value = '';
+          }
+        } else if (e.key === 'Backspace' && field.value === '' && tags.length > 0) {
+          removeTag(tags.length - 1);
+        }
+      });
+
+      field.addEventListener('blur', function () {
+        if (field.value.trim()) {
+          addTagsFromRaw(field.value);
+          field.value = '';
+        }
+      });
+
+      if (form) {
+        form.addEventListener('submit', function () {
+          if (field.value.trim()) {
+            addTagsFromRaw(field.value);
+            field.value = '';
+          }
+          hidden.value = tags.join(', ');
+        });
+      }
+
+      var suggestWrap = box.parentNode.querySelector('[data-tag-suggestions]');
+      if (suggestWrap) {
+        suggestWrap.querySelectorAll('.tag-suggest-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            addTagsFromRaw(btn.dataset.tagName);
+            field.focus();
+          });
+        });
+      }
+    });
+  }
+
+  function boot() {
     init();
+    initImageUploads();
+    initTagEditors();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 }());
 </script>
 
 <%@ include file="/WEB-INF/views/fragments/footer.jspf" %>
-

@@ -9,6 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,7 +18,7 @@ public class PelangganDAO {
     private static final String BASE_SELECT =
             "SELECT pl.ID_Pelanggan, pl.ID_Level, lv.Nama_level, lv.Diskon_level, "
             + "pl.Nama_Pelanggan, pl.Gmail_Pelanggan, pl.Password_Hash, pl.Role, "
-            + "pl.Reseller_Valid_Date, pl.Total_Pembelian, pl.Saldo, pl.Status_Akun "
+            + "pl.Reseller_Valid_Date, pl.Total_Pembelian, pl.Saldo, pl.Status_Akun, pl.Avatar_Img "
             + "FROM Pelanggan pl "
             + "INNER JOIN Level_Pelanggan lv ON lv.ID_Level = pl.ID_Level ";
 
@@ -100,23 +101,37 @@ public class PelangganDAO {
     }
 
     public boolean updateProfile(long idPelanggan, String nama, String newPasswordOrBlank) throws SQLException {
-        if (newPasswordOrBlank != null && !newPasswordOrBlank.trim().isEmpty()) {
-            String sql = "UPDATE Pelanggan SET Nama_Pelanggan = ?, Password_Hash = ? WHERE ID_Pelanggan = ?";
-            try (Connection conn = DBConnection.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, nama);
-                ps.setString(2, PasswordUtil.hashPassword(newPasswordOrBlank.trim()));
-                ps.setLong(3, idPelanggan);
-                return ps.executeUpdate() > 0;
+        return updateProfile(idPelanggan, nama, newPasswordOrBlank, null, false);
+    }
+
+    public boolean updateProfile(long idPelanggan, String nama, String newPasswordOrBlank,
+                                 String avatarImg, boolean updateAvatar) throws SQLException {
+        boolean changePass = newPasswordOrBlank != null && !newPasswordOrBlank.trim().isEmpty();
+        StringBuilder sql = new StringBuilder("UPDATE Pelanggan SET Nama_Pelanggan = ?");
+        if (changePass) {
+            sql.append(", Password_Hash = ?");
+        }
+        if (updateAvatar) {
+            sql.append(", Avatar_Img = ?");
+        }
+        sql.append(" WHERE ID_Pelanggan = ?");
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int idx = 1;
+            ps.setString(idx++, nama);
+            if (changePass) {
+                ps.setString(idx++, PasswordUtil.hashPassword(newPasswordOrBlank.trim()));
             }
-        } else {
-            String sql = "UPDATE Pelanggan SET Nama_Pelanggan = ? WHERE ID_Pelanggan = ?";
-            try (Connection conn = DBConnection.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, nama);
-                ps.setLong(2, idPelanggan);
-                return ps.executeUpdate() > 0;
+            if (updateAvatar) {
+                if (avatarImg == null || avatarImg.trim().isEmpty()) {
+                    ps.setNull(idx++, Types.VARCHAR);
+                } else {
+                    ps.setString(idx++, avatarImg.trim());
+                }
             }
+            ps.setLong(idx, idPelanggan);
+            return ps.executeUpdate() > 0;
         }
     }
 
@@ -168,7 +183,7 @@ public class PelangganDAO {
         pl.setTotalPembelian(rs.getLong("Total_Pembelian"));
         pl.setSaldo(rs.getLong("Saldo"));
         pl.setStatusAkun(rs.getString("Status_Akun"));
+        pl.setAvatarImg(rs.getString("Avatar_Img"));
         return pl;
     }
 }
-

@@ -1,9 +1,12 @@
 package com.zstore.model;
 
+import com.zstore.util.FormatUtil;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Produk {
+    private static final String DEFAULT_THUMB = "/static/Image/Logo/Logo.png";
+
     private long idProduk;
     private long idProvider;
     private String providerNama;
@@ -44,6 +47,19 @@ public class Produk {
     public String getThumbnailImg() { return thumbnailImg; }
     public void setThumbnailImg(String thumbnailImg) { this.thumbnailImg = thumbnailImg; }
 
+    public String thumbnailSrc(String contextPath) {
+        return FormatUtil.resolveImageUrl(contextPath, thumbnailImg, DEFAULT_THUMB);
+    }
+
+    public String getThumbnailFileName() {
+        return FormatUtil.extractFileName(thumbnailImg);
+    }
+
+    public boolean isHasCustomThumbnail() {
+        String trimmed = FormatUtil.trimOrEmpty(thumbnailImg);
+        return !trimmed.isEmpty() && !DEFAULT_THUMB.equals(trimmed);
+    }
+
     public int getAvailableStock() { return availableStock; }
     public void setAvailableStock(int availableStock) { this.availableStock = availableStock; }
 
@@ -54,5 +70,18 @@ public class Produk {
 
     public List<Tag> getTags() { return tags; }
     public void setTags(List<Tag> tags) { this.tags = tags; }
-}
 
+    public String getTagsCsv() {
+        if (tags == null || tags.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < tags.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(tags.get(i).getNamaTag());
+        }
+        return sb.toString();
+    }
+}

@@ -31,7 +31,8 @@ public class TransaksiDAO {
 
     /**
      * Atomically creates an Invoice, Transaksi, Detail_Transaksi rows, claims available Stocks,
-     * deducts customer Saldo when paying with balance, and calls Sumopod QRIS API if configured.
+     * and creates a Sumopod QRIS payment when Sumopod API credentials are configured.
+     * Only Sumopod QRIS payment is supported.
      */
     public long createCheckout(Long idPelanggan, String buyerName, String buyerEmail,
                                long idProduk, int qty, String paymentMethod, int discountPercent)
@@ -46,7 +47,6 @@ public class TransaksiDAO {
         String orderId = "ZST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         int expireMinutes = PaymentConfig.getExpireMinutes();
         Timestamp expiresAt = new Timestamp(System.currentTimeMillis() + expireMinutes * 60L * 1000L);
-        boolean isSaldo = "saldo".equalsIgnoreCase(paymentMethod);
 
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
@@ -86,53 +86,17 @@ public class TransaksiDAO {
                     throw new IllegalStateException("Stok lisensi tidak mencukupi (tersedia " + stockIds.size() + ")");
                 }
 
-                String trxStatus = isSaldo ? "Completed" : "Unpaid";
-                String invoiceStatus = isSaldo ? "Paid" : "Pending";
-                String provider = isSaldo ? "SALDO" : "LOCAL";
-
-                if (isSaldo) {
-                    if (idPelanggan == null) {
-                        throw new IllegalStateException("Pembayaran saldo membutuhkan login akun");
-                    }
-                    long currentSaldo;
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT Saldo FROM Pelanggan WHERE ID_Pelanggan = ? FOR UPDATE")) {
-                        ps.setLong(1, idPelanggan);
-                        try (ResultSet rs = ps.executeQuery()) {
-                            if (!rs.next()) {
-                                throw new IllegalStateException("Akun pelanggan tidak ditemukan");
-                            }
-                            currentSaldo = rs.getLong("Saldo");
-                        }
-                    }
-                    if (currentSaldo < subtotal) {
-                        throw new IllegalStateException("Saldo tidak mencukupi");
-                    }
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "UPDATE Pelanggan SET Saldo = Saldo - ?, Total_Pembelian = Total_Pembelian + ? "
-                            + "WHERE ID_Pelanggan = ?")) {
-                        ps.setLong(1, subtotal);
-                        ps.setLong(2, subtotal);
-                        ps.setLong(3, idPelanggan);
-                        ps.executeUpdate();
-                    }
-                }
-
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO Invoice (Provider, Payment_Link, External_ID, Fee, Net_Amount, Paid_At, Expires_At, Status) "
                         + "VALUES (?, ?, ?, 0, ?, ?, ?, ?)",
                         Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setString(1, provider);
-                    ps.setString(2, "invoice?ext=" + orderId);
+                    ps.setString(1, SumopodClient.PROVIDER_NAME);
+                    ps.setString(2, "invoice?order_id=" + orderId);
                     ps.setString(3, orderId);
                     ps.setLong(4, subtotal);
-                    if (isSaldo) {
-                        ps.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
-                    } else {
-                        ps.setNull(5, Types.TIMESTAMP);
-                    }
+                    ps.setNull(5, Types.TIMESTAMP);
                     ps.setTimestamp(6, expiresAt);
-                    ps.setString(7, invoiceStatus);
+                    ps.setString(7, "Pending");
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) {
@@ -153,8 +117,8 @@ public class TransaksiDAO {
                     }
                     ps.setLong(2, idInvoice);
                     ps.setLong(3, subtotal);
-                    ps.setString(4, paymentMethod.toUpperCase());
-                    ps.setString(5, trxStatus);
+                    ps.setString(4, "QRIS");
+                    ps.setString(5, "Unpaid");
                     ps.setString(6, buyerEmail);
                     ps.setString(7, buyerName);
                     ps.executeUpdate();
@@ -197,7 +161,7 @@ public class TransaksiDAO {
         }
 
         // Call Sumopod QRIS API outside the SQL transaction so row locks aren't held during network I/O.
-        if ("qris".equalsIgnoreCase(paymentMethod) && sumopodClient.isConfigured()) {
+        if (sumopodClient.isConfigured()) {
             int expiresInHours = Math.max(1, Math.min(24, (int) Math.ceil(expireMinutes / 60.0)));
             try {
                 SumopodClient.PaymentResult result = sumopodClient.createPayment(orderId, subtotal, expiresInHours);
@@ -437,15 +401,163 @@ public class TransaksiDAO {
         return trx;
     }
 
+    public Transaksi findByOrderId(String orderId) throws SQLException {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            return null;
+        }
+        String sql = BASE_SELECT + "WHERE UPPER(TRIM(i.External_ID)) = UPPER(?)";
+        Transaksi trx = null;
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, orderId.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    trx = mapRow(rs);
+                }
+            }
+        }
+        if (trx != null) {
+            trx.setDetails(findDetails(trx.getIdTrx()));
+        }
+        return trx;
+    }
+
     public boolean confirmPayment(long idTrx) throws SQLException {
+        return updateStatus(idTrx, "Completed");
+    }
+
+    /**
+     * Atomically transitions a transaction to any valid status (Unpaid, Completed, Failed, Expired, Cancelled),
+     * synchronizing Invoice status/Paid_At/Expires_At, Stock availability, and customer Total_Pembelian.
+     */
+    public boolean updateStatus(long idTrx, String rawNewStatus) throws SQLException {
+        String newStatus = normalizeStatus(rawNewStatus);
+        if (newStatus == null) {
+            throw new IllegalArgumentException("Status transaksi tidak valid: " + rawNewStatus);
+        }
+
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Long idPelanggan;
+                long idInvoice;
+                long totalPembayaran;
+                String oldStatus;
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT ID_Pelanggan, ID_Invoice, Total_Pembayaran, Status "
+                        + "FROM Transaksi WHERE ID_Trx = ? FOR UPDATE")) {
+                    ps.setLong(1, idTrx);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        long pid = rs.getLong("ID_Pelanggan");
+                        idPelanggan = rs.wasNull() ? null : pid;
+                        idInvoice = rs.getLong("ID_Invoice");
+                        totalPembayaran = rs.getLong("Total_Pembayaran");
+                        oldStatus = rs.getString("Status");
+                    }
+                }
+
+                if (newStatus.equalsIgnoreCase(oldStatus)) {
+                    conn.commit();
+                    return true;
+                }
+
+                boolean wasCompleted = "Completed".equalsIgnoreCase(oldStatus);
+                boolean willBeCompleted = "Completed".equalsIgnoreCase(newStatus);
+                boolean wasReleased = isReleasedStatus(oldStatus);
+                boolean willBeReleased = isReleasedStatus(newStatus);
+
+                if (!wasReleased && willBeReleased) {
+                    releaseStocks(conn, idTrx);
+                } else if (wasReleased && !willBeReleased) {
+                    reclaimStocks(conn, idTrx);
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE Transaksi SET Status = ? WHERE ID_Trx = ?")) {
+                    ps.setString(1, newStatus);
+                    ps.setLong(2, idTrx);
+                    ps.executeUpdate();
+                }
+
+                if (idInvoice > 0) {
+                    if (willBeCompleted) {
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Invoice SET Status = 'Paid', Paid_At = COALESCE(Paid_At, NOW()) WHERE ID_Invoice = ?")) {
+                            ps.setLong(1, idInvoice);
+                            ps.executeUpdate();
+                        }
+                    } else if ("Unpaid".equalsIgnoreCase(newStatus)) {
+                        int expireMinutes = PaymentConfig.getExpireMinutes();
+                        Timestamp newExpiry = new Timestamp(System.currentTimeMillis() + expireMinutes * 60L * 1000L);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Invoice SET Status = 'Pending', Paid_At = NULL, "
+                                + "Expires_At = CASE WHEN Expires_At <= NOW() THEN ? ELSE Expires_At END "
+                                + "WHERE ID_Invoice = ?")) {
+                            ps.setTimestamp(1, newExpiry);
+                            ps.setLong(2, idInvoice);
+                            ps.executeUpdate();
+                        }
+                    } else {
+                        String invStatus = "Expired".equalsIgnoreCase(newStatus) ? "Expired" : "Cancelled";
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Invoice SET Status = ?, Paid_At = NULL WHERE ID_Invoice = ?")) {
+                            ps.setString(1, invStatus);
+                            ps.setLong(2, idInvoice);
+                            ps.executeUpdate();
+                        }
+                    }
+                }
+
+                if (idPelanggan != null) {
+                    if (!wasCompleted && willBeCompleted) {
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Pelanggan SET Total_Pembelian = Total_Pembelian + ? WHERE ID_Pelanggan = ?")) {
+                            ps.setLong(1, totalPembayaran);
+                            ps.setLong(2, idPelanggan);
+                            ps.executeUpdate();
+                        }
+                    } else if (wasCompleted && !willBeCompleted) {
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Pelanggan SET Total_Pembelian = GREATEST(0, Total_Pembelian - ?) WHERE ID_Pelanggan = ?")) {
+                            ps.setLong(1, totalPembayaran);
+                            ps.setLong(2, idPelanggan);
+                            ps.executeUpdate();
+                        }
+                    }
+                }
+
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                conn.rollback();
+                if (e instanceof SQLException) {
+                    throw (SQLException) e;
+                }
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
+                throw new SQLException(e);
+            }
+        }
+    }
+
+    /**
+     * Cancels and deletes a transaction, releasing claimed stocks back to 'Tersedia'
+     * if the transaction was not completed, and adjusting customer Total_Pembelian if it was.
+     */
+    public boolean deleteTransaction(long idTrx) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
                 Long idPelanggan = null;
-                long totalPembayaran = 0;
                 long idInvoice = 0;
-                String currentStatus = null;
-
+                long totalPembayaran = 0;
+                String status = null;
                 try (PreparedStatement ps = conn.prepareStatement(
                         "SELECT ID_Pelanggan, ID_Invoice, Total_Pembayaran, Status FROM Transaksi WHERE ID_Trx = ? FOR UPDATE")) {
                     ps.setLong(1, idTrx);
@@ -458,116 +570,20 @@ public class TransaksiDAO {
                         idPelanggan = rs.wasNull() ? null : pid;
                         idInvoice = rs.getLong("ID_Invoice");
                         totalPembayaran = rs.getLong("Total_Pembayaran");
-                        currentStatus = rs.getString("Status");
-                    }
-                }
-
-                if ("Completed".equalsIgnoreCase(currentStatus)) {
-                    conn.commit();
-                    return true;
-                }
-
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "UPDATE Transaksi SET Status = 'Completed' WHERE ID_Trx = ?")) {
-                    ps.setLong(1, idTrx);
-                    ps.executeUpdate();
-                }
-
-                if (idInvoice > 0) {
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "UPDATE Invoice SET Status = 'Paid', Paid_At = COALESCE(Paid_At, NOW()) WHERE ID_Invoice = ?")) {
-                        ps.setLong(1, idInvoice);
-                        ps.executeUpdate();
-                    }
-                }
-
-                if (idPelanggan != null) {
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "UPDATE Pelanggan SET Total_Pembelian = Total_Pembelian + ? WHERE ID_Pelanggan = ?")) {
-                        ps.setLong(1, totalPembayaran);
-                        ps.setLong(2, idPelanggan);
-                        ps.executeUpdate();
-                    }
-                }
-
-                conn.commit();
-                return true;
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            }
-        }
-    }
-
-    public boolean updateStatus(long idTrx, String newStatus) throws SQLException {
-        if ("Completed".equalsIgnoreCase(newStatus)) {
-            return confirmPayment(idTrx);
-        }
-        String invoiceStatus = "Cancelled".equalsIgnoreCase(newStatus) || "Failed".equalsIgnoreCase(newStatus)
-                ? "Cancelled" : ("Expired".equalsIgnoreCase(newStatus) ? "Expired" : "Pending");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                long idInvoice = 0;
-                try (PreparedStatement ps = conn.prepareStatement("SELECT ID_Invoice FROM Transaksi WHERE ID_Trx = ?")) {
-                    ps.setLong(1, idTrx);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            conn.rollback();
-                            return false;
-                        }
-                        idInvoice = rs.getLong("ID_Invoice");
-                    }
-                }
-                try (PreparedStatement ps = conn.prepareStatement("UPDATE Transaksi SET Status = ? WHERE ID_Trx = ?")) {
-                    ps.setString(1, newStatus);
-                    ps.setLong(2, idTrx);
-                    ps.executeUpdate();
-                }
-                if (idInvoice > 0) {
-                    try (PreparedStatement ps = conn.prepareStatement("UPDATE Invoice SET Status = ? WHERE ID_Invoice = ?")) {
-                        ps.setString(1, invoiceStatus);
-                        ps.setLong(2, idInvoice);
-                        ps.executeUpdate();
-                    }
-                }
-                if ("Cancelled".equalsIgnoreCase(newStatus) || "Failed".equalsIgnoreCase(newStatus)
-                        || "Expired".equalsIgnoreCase(newStatus)) {
-                    releaseStocks(conn, idTrx);
-                }
-                conn.commit();
-                return true;
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            }
-        }
-    }
-
-    /**
-     * Cancels and deletes a transaction, releasing claimed stocks back to 'Tersedia'
-     * if the transaction was not completed.
-     */
-    public boolean deleteTransaction(long idTrx) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                long idInvoice = 0;
-                String status = null;
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT ID_Invoice, Status FROM Transaksi WHERE ID_Trx = ? FOR UPDATE")) {
-                    ps.setLong(1, idTrx);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            conn.rollback();
-                            return false;
-                        }
-                        idInvoice = rs.getLong("ID_Invoice");
                         status = rs.getString("Status");
                     }
                 }
 
-                if (!"Completed".equalsIgnoreCase(status)) {
+                if ("Completed".equalsIgnoreCase(status)) {
+                    if (idPelanggan != null) {
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE Pelanggan SET Total_Pembelian = GREATEST(0, Total_Pembelian - ?) WHERE ID_Pelanggan = ?")) {
+                            ps.setLong(1, totalPembayaran);
+                            ps.setLong(2, idPelanggan);
+                            ps.executeUpdate();
+                        }
+                    }
+                } else {
                     releaseStocks(conn, idTrx);
                 }
 
@@ -606,6 +622,55 @@ public class TransaksiDAO {
         }
     }
 
+    private void reclaimStocks(Connection conn, long idTrx) throws SQLException {
+        String checkSql = "SELECT s.ID_Stk, s.status FROM Stocks s "
+                + "INNER JOIN Detail_Transaksi dt ON dt.ID_Stk = s.ID_Stk "
+                + "WHERE dt.ID_Trx = ? FOR UPDATE";
+        List<Long> stockIds = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
+            ps.setLong(1, idTrx);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    if (!"Tersedia".equalsIgnoreCase(rs.getString("status"))) {
+                        throw new IllegalStateException(
+                                "Sebagian stok lisensi transaksi ini sudah dipakai pesanan lain.");
+                    }
+                    stockIds.add(rs.getLong("ID_Stk"));
+                }
+            }
+        }
+        if (!stockIds.isEmpty()) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE Stocks SET status = 'Terjual', claimedAt = CURDATE() WHERE ID_Stk = ?")) {
+                for (Long sid : stockIds) {
+                    ps.setLong(1, sid);
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+        }
+    }
+
+    private static boolean isReleasedStatus(String status) {
+        return "Failed".equalsIgnoreCase(status)
+                || "Expired".equalsIgnoreCase(status)
+                || "Cancelled".equalsIgnoreCase(status);
+    }
+
+    private static String normalizeStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        switch (status.trim().toLowerCase()) {
+            case "unpaid": return "Unpaid";
+            case "completed": return "Completed";
+            case "failed": return "Failed";
+            case "expired": return "Expired";
+            case "cancelled": return "Cancelled";
+            default: return null;
+        }
+    }
+
     private List<Transaksi> queryList(String sql, Long idPelanggan) throws SQLException {
         List<Transaksi> list = new ArrayList<>();
         try (Connection conn = DBConnection.getConnection();
@@ -615,13 +680,64 @@ public class TransaksiDAO {
             }
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Transaksi trx = mapRow(rs);
-                    trx.setDetails(findDetails(trx.getIdTrx()));
-                    list.add(trx);
+                    list.add(mapRow(rs));
+                }
+            }
+        }
+        if (!list.isEmpty()) {
+            List<Long> trxIds = new ArrayList<>(list.size());
+            for (Transaksi t : list) {
+                trxIds.add(t.getIdTrx());
+            }
+            java.util.Map<Long, List<DetailTransaksi>> detailsMap = findDetailsByTrxIds(trxIds);
+            for (Transaksi t : list) {
+                List<DetailTransaksi> dList = detailsMap.get(t.getIdTrx());
+                if (dList != null) {
+                    t.setDetails(dList);
                 }
             }
         }
         return list;
+    }
+
+    private java.util.Map<Long, List<DetailTransaksi>> findDetailsByTrxIds(List<Long> trxIds) throws SQLException {
+        java.util.Map<Long, List<DetailTransaksi>> map = new java.util.HashMap<>();
+        if (trxIds == null || trxIds.isEmpty()) {
+            return map;
+        }
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < trxIds.size(); i++) {
+            if (i > 0) {
+                placeholders.append(',');
+            }
+            placeholders.append('?');
+        }
+        String sql = "SELECT dt.ID_DetailTrx, dt.ID_Trx, dt.ID_Stk, dt.Harga_beli, "
+                + "s.kode_lisensi, p.Nama_Produk "
+                + "FROM Detail_Transaksi dt "
+                + "INNER JOIN Stocks s ON s.ID_Stk = dt.ID_Stk "
+                + "INNER JOIN Produk p ON p.ID_Produk = s.ID_Produk "
+                + "WHERE dt.ID_Trx IN (" + placeholders + ") "
+                + "ORDER BY dt.ID_DetailTrx ASC";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < trxIds.size(); i++) {
+                ps.setLong(i + 1, trxIds.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    DetailTransaksi d = new DetailTransaksi();
+                    d.setIdDetailTrx(rs.getLong("ID_DetailTrx"));
+                    d.setIdTrx(rs.getLong("ID_Trx"));
+                    d.setIdStk(rs.getLong("ID_Stk"));
+                    d.setHargaBeli(rs.getInt("Harga_beli"));
+                    d.setKodeLisensi(rs.getString("kode_lisensi"));
+                    d.setNamaProduk(rs.getString("Nama_Produk"));
+                    map.computeIfAbsent(d.getIdTrx(), k -> new ArrayList<>()).add(d);
+                }
+            }
+        }
+        return map;
     }
 
     private List<DetailTransaksi> findDetails(long idTrx) throws SQLException {

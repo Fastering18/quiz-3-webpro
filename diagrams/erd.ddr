@@ -20,6 +20,7 @@ Entities:
     Gmail Pelanggan
     Password Hash
     Role
+    Avatar Img
     Saldo
     Total Pembelian #
     Status Akun
@@ -86,4 +87,3 @@ Relations:
 - Bills { Invoice: 1; Transaksi: 1 }
 - Contains { Transaksi: 1; Detail Transaksi: N }
 - Allocates { Stock: 1; Detail Transaksi: N }
-

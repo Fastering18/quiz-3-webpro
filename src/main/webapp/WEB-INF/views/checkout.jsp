@@ -12,7 +12,8 @@
   <!-- Product Summary Hero -->
   <div class="glass-card p-3 mb-4 d-flex align-items-center gap-3 flex-wrap">
     <div class="p-thumb" style="width:88px; height:88px; flex-shrink:0;">
-      <img src="${pageContext.request.contextPath}${product.thumbnailImg}" alt="<c:out value='${product.namaProduk}'/>"
+      <img src="<c:out value='${product.thumbnailSrc(pageContext.request.contextPath)}'/>"
+           alt="<c:out value='${product.namaProduk}'/>"
            onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
     </div>
     <div>
@@ -78,48 +79,16 @@
         <h5 class="fw-semibold text-white mb-3">Metode Pembayaran</h5>
 
         <div class="d-grid gap-2">
-          <c:if test="${sessionScope.user != null}">
-            <label class="pay-method-label">
-              <input type="radio" name="method" value="saldo" id="radioSaldo"
-                     ${sessionScope.user.saldo >= effectivePrice ? '' : 'disabled'}>
-              <div>
-                <div class="pay-method-name">
-                  Saldo Akun
-                  <span style="font-size:0.78rem; color:#94a3b8; font-weight:400;">
-                    (Rp <fmt:formatNumber value="${sessionScope.user.saldo}" groupingUsed="true" />)
-                  </span>
-                </div>
-                <div class="pay-method-desc" id="saldoHint">
-                  <c:choose>
-                    <c:when test="${sessionScope.user.saldo >= effectivePrice}">Potong langsung dari saldo akun</c:when>
-                    <c:otherwise>Saldo tidak mencukupi</c:otherwise>
-                  </c:choose>
-                </div>
-              </div>
-            </label>
-          </c:if>
-
           <label class="pay-method-label">
             <input type="radio" name="method" value="qris" checked>
             <div>
               <div class="pay-method-name">
                 QRIS via Sumopod
-                <c:if test="${debugMode && !sumopodConfigured}">
-                  <span class="badge-sandbox">Sandbox</span>
-                </c:if>
-                <c:if test="${sumopodConfigured && sumopodSandbox}">
+                <c:if test="${(debugMode && !sumopodConfigured) || (sumopodConfigured && sumopodSandbox)}">
                   <span class="badge-sandbox">Sandbox</span>
                 </c:if>
               </div>
-              <div class="pay-method-desc">Pembayaran instan via scan QRIS</div>
-            </div>
-          </label>
-
-          <label class="pay-method-label">
-            <input type="radio" name="method" value="bank">
-            <div>
-              <div class="pay-method-name">Transfer Bank Virtual Account</div>
-              <div class="pay-method-desc">BCA, Mandiri, BNI, atau BRI Virtual Account</div>
+              <div class="pay-method-desc">Pembayaran instan via scan QRIS Sumopod</div>
             </div>
           </label>
         </div>
@@ -138,8 +107,7 @@
     <!-- Order Summary -->
     <div class="col-lg-5">
       <div class="glass-card p-4" id="summaryBox"
-           data-unit-price="${effectivePrice}"
-           data-saldo="${sessionScope.user != null ? sessionScope.user.saldo : 0}">
+           data-unit-price="${effectivePrice}">
         <h5 class="fw-semibold text-white mb-3">Ringkasan Pesanan</h5>
 
         <div class="d-flex justify-content-between py-2 border-bottom border-secondary border-opacity-25">
@@ -168,7 +136,7 @@
         </div>
 
         <p class="small text-muted-soft mb-0 mt-1" style="border-top:1px solid rgba(255,255,255,0.07); padding-top:12px;">
-          Kunci lisensi langsung tampil di halaman invoice setelah pembayaran lunas.
+          Kunci lisensi langsung tampil di halaman invoice setelah pembayaran QRIS lunas.
         </p>
       </div>
     </div>
@@ -181,12 +149,9 @@
     const summaryBox = document.getElementById('summaryBox');
     const sumQty = document.getElementById('sumQty');
     const sumTotal = document.getElementById('sumTotal');
-    const radioSaldo = document.getElementById('radioSaldo');
-    const saldoHint = document.getElementById('saldoHint');
     if (!qtyInput || !summaryBox) return;
 
     const unitPrice = parseInt(summaryBox.dataset.unitPrice || '0', 10);
-    const saldo = parseInt(summaryBox.dataset.saldo || '0', 10);
     const formatRp = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(n);
 
     function updateSummary() {
@@ -197,19 +162,6 @@
       const total = unitPrice * q;
       sumQty.textContent = q;
       sumTotal.textContent = formatRp(total);
-
-      if (radioSaldo) {
-        const enough = saldo >= total;
-        radioSaldo.disabled = !enough;
-        if (!enough && radioSaldo.checked) {
-          document.querySelector('input[name="method"][value="qris"]').checked = true;
-        }
-        if (saldoHint) {
-          saldoHint.textContent = enough
-            ? 'Potong langsung dari saldo akun'
-            : 'Saldo tidak mencukupi';
-        }
-      }
     }
 
     qtyInput.addEventListener('input', updateSummary);

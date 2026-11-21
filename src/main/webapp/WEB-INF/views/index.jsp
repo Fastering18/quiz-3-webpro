@@ -11,7 +11,7 @@
   <section id="kategori" class="mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="text-white fw-bold section-heading mb-0">Kategori</h4>
-      <a href="${pageContext.request.contextPath}/home"
+      <a href="${allProvidersUrl}"
          class="cat-all-link ${activeProviderId == 0 ? 'is-active' : ''}">
         Semua Kategori
       </a>
@@ -20,10 +20,12 @@
     <div class="row g-3">
       <c:forEach var="cat" items="${categories}">
         <div class="col-6 col-md-3">
-          <a href="${pageContext.request.contextPath}/home?provider=${cat.idProvider}" class="d-block h-100">
+          <a href="${providerUrls[cat.idProvider]}" class="d-block h-100">
             <div class="cat-card h-100 ${activeProviderId == cat.idProvider ? 'active' : ''}">
               <div class="cat-icon-wrap">
-                <img src="${pageContext.request.contextPath}${cat.thumbnailImg}" alt="<c:out value='${cat.nama}'/>"
+                <img src="<c:out value='${cat.thumbnailSrc(pageContext.request.contextPath)}'/>"
+                     alt="<c:out value='${cat.nama}'/>"
+                     loading="lazy" decoding="async"
                      onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
               </div>
               <div class="text-white fw-semibold small"><c:out value="${cat.nama}" /></div>
@@ -37,20 +39,28 @@
 
   <!-- Katalog Produk -->
   <section id="produk" class="mt-5">
-    <!-- Tag filter — sits just above the section header -->
+    <!-- Multi-tag filter -->
     <c:if test="${not empty tags}">
       <div class="d-flex align-items-center gap-2 flex-wrap pills mb-4">
-        <span class="small text-muted-soft fw-semibold me-1" style="white-space:nowrap;">Filter Tag:</span>
-        <a class="pill py-1 px-3 ${activeTagId == 0 ? 'active' : ''}"
-           href="${pageContext.request.contextPath}/home${activeProviderId > 0 ? '?provider='.concat(activeProviderId) : ''}">
+        <span class="small text-muted-soft fw-semibold me-1" style="white-space:nowrap;">
+          Filter Tag (pilih satu atau lebih):
+        </span>
+        <a class="pill py-1 px-3 ${empty activeTagIds ? 'active' : ''}"
+           href="${clearTagsUrl}">
           Semua
         </a>
         <c:forEach var="t" items="${tags}">
-          <a class="pill py-1 px-3 ${activeTagId == t.idTag ? 'active' : ''}"
-             href="${pageContext.request.contextPath}/home?tag=${t.idTag}">
+          <a class="pill py-1 px-3 ${activeTagIds.contains(t.idTag) ? 'active' : ''}"
+             href="${tagToggleUrls[t.idTag]}">
             <c:out value="${t.namaTag}" />
           </a>
         </c:forEach>
+        <c:if test="${activeProviderId > 0 || not empty activeTagIds || not empty searchQuery}">
+          <a class="small text-muted-soft ms-auto text-decoration-none"
+             href="${pageContext.request.contextPath}/home">
+            Reset Filter
+          </a>
+        </c:if>
       </div>
     </c:if>
 
@@ -59,6 +69,12 @@
         <c:choose>
           <c:when test="${not empty searchQuery}">Hasil Pencarian: "<c:out value="${searchQuery}" />"</c:when>
           <c:when test="${not empty activeCategoryName}"><c:out value="${activeCategoryName}" /></c:when>
+          <c:when test="${not empty activeTagNames}">
+            Tag:
+            <c:forEach var="tn" items="${activeTagNames}" varStatus="st">
+              <c:if test="${!st.first}"> + </c:if><c:out value="${tn}" />
+            </c:forEach>
+          </c:when>
           <c:otherwise>Katalog Produk Digital</c:otherwise>
         </c:choose>
       </h4>
@@ -81,13 +97,22 @@
                     </c:otherwise>
                   </c:choose>
                   <div class="p-thumb">
-                    <img src="${pageContext.request.contextPath}${p.thumbnailImg}" alt="<c:out value='${p.namaProduk}'/>"
+                    <img src="<c:out value='${p.thumbnailSrc(pageContext.request.contextPath)}'/>"
+                         alt="<c:out value='${p.namaProduk}'/>"
+                         loading="lazy" decoding="async"
                          onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
                   </div>
                   <div class="p-body">
                     <div>
                       <div class="p-meta"><c:out value="${p.providerNama}" /></div>
                       <div class="p-title"><c:out value="${p.namaProduk}" /></div>
+                      <c:if test="${not empty p.tags}">
+                        <div class="p-tags-row">
+                          <c:forEach var="pt" items="${p.tags}" end="2">
+                            <span class="p-tag-mini"><c:out value="${pt.namaTag}" /></span>
+                          </c:forEach>
+                        </div>
+                      </c:if>
                     </div>
                     <div class="p-price">
                       Rp <fmt:formatNumber value="${p.hargaProduk}" groupingUsed="true" />
@@ -118,7 +143,7 @@
           <div class="col-lg-8">
             <h3 class="fw-bold text-white mb-2">Daftar akun untuk kemudahan transaksi</h3>
             <p class="text-muted-soft mb-3">
-              Kelola riwayat pembelian lisensi, top-up saldo akun untuk checkout instan, dan dapatkan diskon khusus level Reseller atau VIP.
+              Kelola riwayat pembelian lisensi, bayar cepat melalui QRIS Sumopod, dan dapatkan diskon khusus level Reseller atau VIP.
             </p>
             <a href="${pageContext.request.contextPath}/register" class="btn btn-accent px-4 py-2">Daftar Sekarang</a>
           </div>
@@ -131,7 +156,4 @@
   </c:if>
 </div>
 
-
-
 <%@ include file="/WEB-INF/views/fragments/footer.jspf" %>
-

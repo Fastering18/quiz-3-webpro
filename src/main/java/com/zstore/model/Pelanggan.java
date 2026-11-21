@@ -1,5 +1,6 @@
 package com.zstore.model;
 
+import com.zstore.util.FormatUtil;
 import java.sql.Date;
 
 public class Pelanggan {
@@ -15,6 +16,7 @@ public class Pelanggan {
     private long totalPembelian;
     private long saldo;
     private String statusAkun;
+    private String avatarImg;
 
     public long getIdPelanggan() { return idPelanggan; }
     public void setIdPelanggan(long idPelanggan) { this.idPelanggan = idPelanggan; }
@@ -52,6 +54,21 @@ public class Pelanggan {
     public String getStatusAkun() { return statusAkun; }
     public void setStatusAkun(String statusAkun) { this.statusAkun = statusAkun; }
 
+    public String getAvatarImg() { return avatarImg; }
+    public void setAvatarImg(String avatarImg) { this.avatarImg = avatarImg; }
+
+    public boolean isHasAvatar() {
+        return !FormatUtil.trimOrEmpty(avatarImg).isEmpty();
+    }
+
+    public String avatarSrc(String contextPath) {
+        return isHasAvatar() ? FormatUtil.resolveImageUrl(contextPath, avatarImg, "") : "";
+    }
+
+    public String getAvatarFileName() {
+        return FormatUtil.extractFileName(avatarImg);
+    }
+
     public boolean isAdmin() {
         return "Admin".equalsIgnoreCase(role);
     }
@@ -63,4 +80,3 @@ public class Pelanggan {
         return "U";
     }
 }
-

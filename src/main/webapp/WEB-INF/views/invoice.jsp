@@ -2,9 +2,9 @@
 
 <div class="container py-4" style="max-width:860px;">
 
-  <%-- Flash banners — dark surface, no bright bootstrap colours --%>
+  <%-- Flash banners --%>
   <c:if test="${param.created == '1'}">
-    <div class="inv-alert inv-alert-success">Pesanan berhasil dibuat. Selesaikan pembayaran jika status masih Unpaid.</div>
+    <div class="inv-alert inv-alert-success">Pesanan berhasil dibuat. Selesaikan pembayaran QRIS jika status masih Unpaid.</div>
   </c:if>
   <c:if test="${param.paid == '1'}">
     <div class="inv-alert inv-alert-success">Pembayaran dikonfirmasi. Kunci lisensi sudah aktif di bawah ini.</div>
@@ -20,31 +20,34 @@
     <c:when test="${trx == null}">
       <div class="glass-card p-4 p-md-5">
         <h3 class="fw-bold text-white mb-1">Cek Invoice</h3>
-        <p class="text-muted-soft small mb-4">Masukkan nomor ID transaksi untuk melihat detail atau kunci lisensi.</p>
+        <p class="text-muted-soft small mb-4">Masukkan Order ID untuk melihat detail transaksi atau kunci lisensi Anda.</p>
         <c:if test="${not empty error}">
           <div class="inv-alert inv-alert-danger"><c:out value="${error}" /></div>
         </c:if>
         <form method="GET" action="${pageContext.request.contextPath}/invoice" class="d-flex gap-2">
-          <input type="number" name="id" class="form-control form-dark" placeholder="Contoh: 1" min="1" required>
+          <input type="text" name="order_id" class="form-control form-dark"
+                 placeholder="Contoh: ZST-A1B2C3D4"
+                 value="<c:out value='${param.order_id}'/>" required>
           <button type="submit" class="inv-btn inv-btn-primary">Cari</button>
         </form>
       </div>
     </c:when>
     <c:otherwise>
+      <c:set var="resolvedOrderId" value="${trx.invoice != null && not empty trx.invoice.externalId ? trx.invoice.externalId : '#'.concat(trx.idTrx)}" />
       <div class="glass-card p-4 p-md-5" id="invoiceRoot"
+           data-order-id="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>"
            data-trx-id="${trx.idTrx}"
            data-status="${trx.status}">
 
-        <%-- ── Header ── --%>
+        <%-- Header --%>
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 pb-3 mb-4"
              style="border-bottom:1px solid rgba(255,255,255,0.08);">
           <div>
-            <h3 class="fw-bold text-white mb-1">Invoice #<c:out value="${trx.idTrx}" /></h3>
+            <h3 class="fw-bold text-white mb-1">
+              Invoice <span class="inv-order-id"><c:out value="${resolvedOrderId}" /></span>
+            </h3>
             <div class="small" style="color:#94a3b8;">
-              Order ID:
-              <span class="inv-order-id" style="color:#e2e8f0;">
-                <c:out value="${trx.invoice != null ? trx.invoice.externalId : '-'}" />
-              </span>
+              Trx #<c:out value="${trx.idTrx}" />
               <c:if test="${trx.invoice != null && not empty trx.invoice.provider}">
                 <span style="color:#475569;">&nbsp;&middot;&nbsp;</span>
                 <span style="color:#94a3b8;"><c:out value="${trx.invoice.provider}" /></span>
@@ -69,7 +72,7 @@
           </div>
         </div>
 
-        <%-- ── QRIS payment link ── --%>
+        <%-- QRIS payment link --%>
         <c:if test="${trx.status == 'Unpaid' && trx.invoice != null && trx.invoice.externalPaymentLink}">
           <div class="p-3 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3"
                style="background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.20); border-radius:10px;">
@@ -80,15 +83,19 @@
             <div class="d-flex gap-2">
               <a href="<c:out value='${trx.invoice.paymentLink}'/>" target="_blank" rel="noopener"
                  class="inv-btn inv-btn-primary">Bayar via QRIS</a>
-              <a href="${pageContext.request.contextPath}/invoice?id=${trx.idTrx}"
+              <a href="${pageContext.request.contextPath}/invoice?order_id=<c:out value='${trx.invoice.externalId}'/>"
                  class="inv-btn inv-btn-neutral">Muat Ulang</a>
             </div>
           </div>
         </c:if>
 
-        <%-- ── Detail Pembeli ── --%>
+        <%-- Detail Pembeli --%>
         <div class="mb-4">
           <div class="inv-section-label">Detail Pembeli</div>
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid rgba(255,255,255,0.07);">
+            <span class="small text-muted-soft">Order ID</span>
+            <span class="small inv-order-id" style="color:#e2e8f0;"><c:out value="${resolvedOrderId}" /></span>
+          </div>
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid rgba(255,255,255,0.07);">
             <span class="small text-muted-soft">Nama Penerima</span>
             <span class="small"><c:out value="${not empty trx.namaPenerima ? trx.namaPenerima : (not empty trx.namaPelanggan ? trx.namaPelanggan : 'Guest')}" /></span>
@@ -103,7 +110,7 @@
           </div>
         </div>
 
-        <%-- ── Item & Kunci Lisensi ── --%>
+        <%-- Item & Kunci Lisensi --%>
         <div class="mb-4">
           <div class="inv-section-label">Item &amp; Kunci Lisensi</div>
           <c:forEach var="d" items="${trx.details}">
@@ -147,7 +154,7 @@
           </c:forEach>
         </div>
 
-        <%-- ── Biaya gateway ── --%>
+        <%-- Biaya gateway --%>
         <c:if test="${trx.invoice != null && trx.invoice.fee > 0}">
           <div class="d-flex justify-content-between py-2 small" style="border-top:1px solid rgba(255,255,255,0.07);">
             <span class="text-muted-soft">Subtotal Produk</span>
@@ -159,7 +166,7 @@
           </div>
         </c:if>
 
-        <%-- ── Total ── --%>
+        <%-- Total --%>
         <div class="d-flex justify-content-between align-items-center py-3 mb-4"
              style="border-top:1px solid rgba(255,255,255,0.09); border-bottom:1px solid rgba(255,255,255,0.09);">
           <span class="fw-semibold text-white">Total Pembayaran</span>
@@ -168,26 +175,26 @@
           </span>
         </div>
 
-        <%-- ── Action buttons ── --%>
+        <%-- Action buttons --%>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-          <%-- Left: transaction actions --%>
           <div class="d-flex gap-2 flex-wrap">
             <c:if test="${trx.status == 'Unpaid'}">
               <form method="POST" action="${pageContext.request.contextPath}/invoice">
+                <input type="hidden" name="order_id" value="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>">
                 <input type="hidden" name="id_trx" value="${trx.idTrx}">
                 <input type="hidden" name="action" value="confirm">
                 <button type="submit" class="inv-btn inv-btn-primary">Konfirmasi Pembayaran</button>
               </form>
-              <%-- hidden cancel form submitted by modal --%>
               <form id="inv-cancel-form" method="POST" action="${pageContext.request.contextPath}/invoice" style="display:none;">
+                <input type="hidden" name="order_id" value="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>">
                 <input type="hidden" name="id_trx" value="${trx.idTrx}">
                 <input type="hidden" name="action" value="cancel">
               </form>
               <button type="button" class="inv-btn inv-btn-danger"
-                      onclick="openInvCancelModal(${trx.idTrx})">Batalkan Pesanan</button>
+                      data-order-label="<c:out value='${resolvedOrderId}'/>"
+                      onclick="openInvCancelModal(this.dataset.orderLabel)">Batalkan Pesanan</button>
             </c:if>
           </div>
-          <%-- Right: utility actions --%>
           <div class="d-flex gap-2 no-print">
             <button type="button" class="inv-btn inv-btn-neutral no-print" onclick="window.print()">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75"
@@ -204,26 +211,29 @@
           </div>
         </div>
 
-        <%-- ── Sandbox Simulator (debug only) ── --%>
+        <%-- Sandbox Simulator (debug only) --%>
         <c:if test="${debugMode && trx.status == 'Unpaid'}">
           <div class="inv-sandbox no-print">
             <div class="inv-sandbox-title">Mode Sandbox &middot; Simulasi Webhook</div>
             <div class="inv-sandbox-desc">
               Uji perubahan status pembayaran lokal untuk Order ID
-              <span class="inv-order-id"><c:out value="${trx.invoice != null ? trx.invoice.externalId : '-'}" /></span>.
+              <span class="inv-order-id"><c:out value="${resolvedOrderId}" /></span>.
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <form method="POST" action="${pageContext.request.contextPath}/invoice">
+                <input type="hidden" name="order_id" value="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>">
                 <input type="hidden" name="id_trx" value="${trx.idTrx}">
                 <input type="hidden" name="action" value="simulate_paid">
                 <button type="submit" class="inv-sim-btn inv-sim-paid">Simulasikan PAID</button>
               </form>
               <form method="POST" action="${pageContext.request.contextPath}/invoice">
+                <input type="hidden" name="order_id" value="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>">
                 <input type="hidden" name="id_trx" value="${trx.idTrx}">
                 <input type="hidden" name="action" value="simulate_failed">
                 <button type="submit" class="inv-sim-btn inv-sim-failed">Simulasikan FAILED</button>
               </form>
               <form method="POST" action="${pageContext.request.contextPath}/invoice">
+                <input type="hidden" name="order_id" value="<c:out value='${trx.invoice != null ? trx.invoice.externalId : ""}'/>">
                 <input type="hidden" name="id_trx" value="${trx.idTrx}">
                 <input type="hidden" name="action" value="simulate_expired">
                 <button type="submit" class="inv-sim-btn inv-sim-expired">Simulasikan EXPIRED</button>
@@ -237,7 +247,7 @@
   </c:choose>
 </div>
 
-<%-- ── Cancel confirmation modal ── --%>
+<%-- Cancel confirmation modal --%>
 <div id="invCancelModal" class="inv-cancel-modal-overlay" role="dialog" aria-modal="true">
   <div class="inv-cancel-modal-box">
     <h5 class="fw-semibold text-white mb-1">Batalkan Transaksi?</h5>
@@ -253,14 +263,13 @@
 </div>
 
 <script>
-  /* ── Cancel modal ── */
   (function () {
     var modal   = document.getElementById('invCancelModal');
     var confirm = document.getElementById('invCancelConfirm');
     if (!modal || !confirm) return;
 
-    window.openInvCancelModal = function (trxId) {
-      document.getElementById('invCancelTrxId').textContent = '#' + trxId;
+    window.openInvCancelModal = function (orderLabel) {
+      document.getElementById('invCancelTrxId').textContent = orderLabel;
       modal.classList.add('is-open');
       document.body.style.overflow = 'hidden';
     };
@@ -284,7 +293,6 @@
     });
   }());
 
-  /* ── Copy-to-clipboard for license keys ── */
   document.querySelectorAll('.btn-copy-license').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var key = btn.dataset.key;
@@ -298,12 +306,14 @@
     });
   });
 
-  /* ── Auto-poll for Unpaid status ── */
   (function () {
     var root = document.getElementById('invoiceRoot');
     if (!root || root.dataset.status !== 'Unpaid') return;
+    var orderId = root.dataset.orderId;
     var trxId   = root.dataset.trxId;
-    var pollUrl = '${pageContext.request.contextPath}/invoice?id=' + encodeURIComponent(trxId) + '&format=json';
+    var pollUrl = orderId
+      ? '${pageContext.request.contextPath}/invoice?order_id=' + encodeURIComponent(orderId) + '&format=json'
+      : '${pageContext.request.contextPath}/invoice?id=' + encodeURIComponent(trxId) + '&format=json';
     var timer = setInterval(async function () {
       try {
         var res = await fetch(pollUrl, { headers: { 'Accept': 'application/json' } });

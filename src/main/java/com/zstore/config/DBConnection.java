@@ -2,6 +2,10 @@ package com.zstore.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -9,10 +13,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
- * Manages MySQL / TiDB JDBC connections using environment variables (.env or OS env),
- * supporting both mysql:// URIs and jdbc:mysql:// URLs, with fallback to db.properties.
+ * Manages MySQL / TiDB JDBC connections with a lightweight in-process connection pool.
+ * Reads environment variables (.env or OS env) supporting mysql:// URIs and jdbc:mysql:// URLs,
+ * with fallback to db.properties.
  */
 public final class DBConnection {
 
@@ -20,6 +27,10 @@ public final class DBConnection {
             "jdbc:mysql://localhost:3306/zstore_jsp?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Jakarta";
     private static final String DEFAULT_USER = "root";
     private static final String DEFAULT_PASS = "";
+
+    private static final int MAX_POOL_SIZE = 8;
+    private static final long MAX_IDLE_MS = 4L * 60L * 1000L;
+    private static final BlockingQueue<PooledEntry> POOL = new ArrayBlockingQueue<>(MAX_POOL_SIZE);
 
     private static String url;
     private static String user;
@@ -113,7 +124,9 @@ public final class DBConnection {
                 : "useSSL=false&allowPublicKeyRetrieval=true";
         return "jdbc:mysql://" + host + ":" + port + "/" + dbName
                 + "?useUnicode=true&characterEncoding=UTF-8&" + sslParams
-                + "&serverTimezone=Asia/Jakarta";
+                + "&serverTimezone=Asia/Jakarta"
+                + "&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048"
+                + "&tcpKeepAlive=true&connectTimeout=10000&socketTimeout=30000";
     }
 
     private static void loadProps(Properties props, String resourceName) {
@@ -139,7 +152,122 @@ public final class DBConnection {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 
+    /**
+     * Borrows a validated physical connection from the pool (or opens a new one if none is idle)
+     * and wraps it so calling close() returns it cleanly to the pool.
+     */
     public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(url, user, password);
+        long now = System.currentTimeMillis();
+        PooledEntry entry;
+        while ((entry = POOL.poll()) != null) {
+            if (now - entry.lastUsedMs > MAX_IDLE_MS) {
+                closeQuietly(entry.physical);
+                continue;
+            }
+            if (isHealthy(entry.physical)) {
+                return wrap(entry.physical);
+            }
+            closeQuietly(entry.physical);
+        }
+        Connection fresh = DriverManager.getConnection(url, user, password);
+        return wrap(fresh);
+    }
+
+    /**
+     * Closes all idle pooled connections (called on servlet context shutdown).
+     */
+    public static void shutdownPool() {
+        PooledEntry entry;
+        while ((entry = POOL.poll()) != null) {
+            closeQuietly(entry.physical);
+        }
+    }
+
+    private static Connection wrap(Connection physical) {
+        return (Connection) Proxy.newProxyInstance(
+                DBConnection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                new PooledConnectionHandler(physical)
+        );
+    }
+
+    private static void release(Connection physical) {
+        if (physical == null) {
+            return;
+        }
+        try {
+            if (physical.isClosed()) {
+                return;
+            }
+            if (!physical.getAutoCommit()) {
+                physical.rollback();
+                physical.setAutoCommit(true);
+            }
+            if (!POOL.offer(new PooledEntry(physical, System.currentTimeMillis()))) {
+                closeQuietly(physical);
+            }
+        } catch (SQLException e) {
+            closeQuietly(physical);
+        }
+    }
+
+    private static boolean isHealthy(Connection conn) {
+        try {
+            return conn != null && !conn.isClosed() && conn.isValid(2);
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    private static void closeQuietly(Connection conn) {
+        if (conn != null) {
+            try {
+                conn.close();
+            } catch (SQLException ignored) {
+                // Best effort cleanup.
+            }
+        }
+    }
+
+    private static final class PooledEntry {
+        final Connection physical;
+        final long lastUsedMs;
+
+        PooledEntry(Connection physical, long lastUsedMs) {
+            this.physical = physical;
+            this.lastUsedMs = lastUsedMs;
+        }
+    }
+
+    private static final class PooledConnectionHandler implements InvocationHandler {
+        private final Connection physical;
+        private boolean closed = false;
+
+        PooledConnectionHandler(Connection physical) {
+            this.physical = physical;
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            String name = method.getName();
+            if ("close".equals(name)) {
+                if (!closed) {
+                    closed = true;
+                    release(physical);
+                }
+                return null;
+            }
+            if ("isClosed".equals(name)) {
+                return closed || physical.isClosed();
+            }
+            if (closed) {
+                throw new SQLException("Connection is already closed");
+            }
+            try {
+                return method.invoke(physical, args);
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            }
+        }
     }
 }

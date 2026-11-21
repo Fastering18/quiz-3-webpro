@@ -1,5 +1,6 @@
 package com.zstore.servlet;
 
+import com.zstore.config.DBConnection;
 import com.zstore.dao.TransaksiDAO;
 import java.sql.SQLException;
 import java.util.concurrent.Executors;
@@ -37,6 +38,7 @@ public class PaymentExpiryListener implements ServletContextListener {
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
+        DBConnection.shutdownPool();
     }
 }
 
