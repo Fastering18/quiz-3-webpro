@@ -1,9 +1,9 @@
   </main>
   <footer class="footer-wrap">
     <div class="container text-center">
-      <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
-        <img src="${pageContext.request.contextPath}/static/Image/Logo/Logo.png" alt="Logo Z-Store" style="height:32px;">
-        <span class="fw-bold">Z-Store</span>
+      <div class="d-flex justify-content-center align-items-center mb-2">
+        <img src="${pageContext.request.contextPath}/static/Image/Logo/Logo.png" alt="Z-Store"
+             style="height:36px; width:auto; object-fit:contain;">
       </div>
       <p class="text-muted-soft small mx-auto mb-2" style="max-width:640px;">
         Toko produk digital dan lisensi perangkat lunak dengan pengiriman kunci lisensi secara instan.

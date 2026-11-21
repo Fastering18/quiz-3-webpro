@@ -17,78 +17,186 @@
 <body>
   <nav class="navbar navbar-expand-lg sticky-top nav-glass">
     <div class="container">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="${pageContext.request.contextPath}/home">
-        <img src="${pageContext.request.contextPath}/static/Image/Logo/Logo.png" alt="Z-Store Logo" style="height:44px">
-        <span>Z-Store</span>
+
+      <!-- Brand logo -->
+      <a class="navbar-brand d-flex align-items-center" href="${pageContext.request.contextPath}/home">
+        <img src="${pageContext.request.contextPath}/static/Image/Logo/Logo.png" alt="Z-Store"
+             style="height:34px; width:auto; object-fit:contain;">
       </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+      <!-- Mobile toggler -->
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
         aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon" style="filter:invert(1)"></span>
+        <span class="navbar-toggler-icon" style="filter:invert(0.7)"></span>
       </button>
 
       <div id="mainNav" class="collapse navbar-collapse">
-        <form class="d-flex ms-lg-4 my-2 my-lg-0 flex-grow-1" action="${pageContext.request.contextPath}/home" method="GET" role="search">
-          <input class="form-control nav-search" type="search" name="q" value="<c:out value='${searchQuery}'/>"
-            placeholder="Cari produk digital, software, atau lisensi..." aria-label="Cari produk">
+
+        <!-- Search bar — expanded, center -->
+        <form class="d-flex flex-grow-1 my-2 my-lg-0 ms-lg-3 me-lg-3"
+              action="${pageContext.request.contextPath}/home" method="GET" role="search">
+          <div class="nav-search-wrap">
+            <svg class="nav-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                 stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8.5" cy="8.5" r="5.5"/>
+              <line x1="13.5" y1="13.5" x2="17" y2="17"/>
+            </svg>
+            <input class="form-control nav-search" type="search" name="q"
+                   value="<c:out value='${searchQuery}'/>"
+                   placeholder="Cari produk digital, software, atau lisensi..."
+                   aria-label="Cari produk">
+          </div>
         </form>
 
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-2">
+        <!-- Right-side nav items -->
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1">
+
           <li class="nav-item">
-            <a class="nav-link" href="${pageContext.request.contextPath}/home">Katalog</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="${pageContext.request.contextPath}/invoice">Cek Invoice</a>
+            <a class="nav-link px-3" href="${pageContext.request.contextPath}/invoice">Cek Invoice</a>
           </li>
 
           <c:choose>
             <c:when test="${sessionScope.user != null}">
-              <c:if test="${sessionScope.user.admin}">
-                <li class="nav-item">
-                  <a class="nav-link text-warning fw-semibold" href="${pageContext.request.contextPath}/admin">Admin Panel</a>
-                </li>
-              </c:if>
-              <li class="nav-item dropdown ms-lg-1">
-                <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="userMenu" role="button"
-                  data-bs-toggle="dropdown" aria-expanded="false">
-                  <span class="d-inline-flex align-items-center justify-content-center rounded-circle"
-                    style="width:32px;height:32px;background:var(--accent);color:#000;font-weight:700;">
+
+              <!-- Custom profile dropdown trigger -->
+              <li class="nav-item ms-lg-1" style="position:relative;">
+                <button type="button" class="nav-profile-trigger" id="profileTrigger"
+                        aria-expanded="false" aria-haspopup="true">
+                  <!-- Avatar circle -->
+                  <span class="nav-avatar">
                     <c:out value="${sessionScope.user.initial}" />
                   </span>
-                  <span><c:out value="${sessionScope.user.namaPelanggan}" /></span>
-                </a>
-                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark"
-                  style="background:#110d1c; border:1px solid var(--border);">
-                  <li class="px-3 py-2 small text-muted-soft">
-                    Level: <strong class="text-white"><c:out value="${sessionScope.user.namaLevel}" /></strong><br>
-                    Saldo: <strong class="text-white">Rp <fmt:formatNumber value="${sessionScope.user.saldo}" groupingUsed="true" /></strong>
-                  </li>
-                  <li><hr class="dropdown-divider" style="border-color:rgba(255,255,255,.1);"></li>
-                  <li><a class="dropdown-item" href="${pageContext.request.contextPath}/dashboard">Dashboard Pelanggan</a></li>
+                  <!-- Name -->
+                  <span class="nav-profile-name">
+                    <c:out value="${sessionScope.user.namaPelanggan}" />
+                  </span>
+                  <!-- Caret -->
+                  <svg class="nav-caret" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="4 6 8 10 12 6"/>
+                  </svg>
+                </button>
+
+                <!-- Custom dropdown panel -->
+                <div class="nav-dropdown-panel" id="profilePanel" role="menu">
+
+                  <!-- Account info block -->
+                  <div class="nav-dd-info">
+                    <div class="nav-dd-info-top">
+                      <span class="nav-dd-username">
+                        <c:out value="${sessionScope.user.namaPelanggan}" />
+                      </span>
+                      <span class="nav-dd-level-badge">
+                        <c:out value="${sessionScope.user.namaLevel}" />
+                      </span>
+                    </div>
+                    <c:choose>
+                      <c:when test="${sessionScope.user.admin}">
+                        <div class="nav-dd-info-sub">
+                          <span class="nav-dd-label">Role</span>
+                          <span class="nav-dd-value">Administrator</span>
+                        </div>
+                      </c:when>
+                      <c:otherwise>
+                        <div class="nav-dd-info-sub">
+                          <span class="nav-dd-label">Saldo</span>
+                          <span class="nav-dd-value num-tabular">
+                            Rp <fmt:formatNumber value="${sessionScope.user.saldo}" groupingUsed="true" />
+                          </span>
+                        </div>
+                      </c:otherwise>
+                    </c:choose>
+                  </div>
+
+                  <div class="nav-dd-divider"></div>
+
+                  <!-- Dashboard link -->
+                  <a class="nav-dd-item" href="${pageContext.request.contextPath}/dashboard" role="menuitem">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="2" y="2" width="7" height="7" rx="1.5"/>
+                      <rect x="11" y="2" width="7" height="7" rx="1.5"/>
+                      <rect x="2" y="11" width="7" height="7" rx="1.5"/>
+                      <rect x="11" y="11" width="7" height="7" rx="1.5"/>
+                    </svg>
+                    Dashboard
+                  </a>
+
+                  <!-- Admin link (only for admin role) -->
                   <c:if test="${sessionScope.user.admin}">
-                    <li><a class="dropdown-item" href="${pageContext.request.contextPath}/admin">Kelola Toko (Admin)</a></li>
+                    <a class="nav-dd-item" href="${pageContext.request.contextPath}/admin" role="menuitem">
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="10" cy="10" r="3"/>
+                        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
+                      </svg>
+                      Admin Panel
+                    </a>
                   </c:if>
-                  <li><hr class="dropdown-divider" style="border-color:rgba(255,255,255,.1);"></li>
-                  <li>
-                    <form method="POST" action="${pageContext.request.contextPath}/logout" style="margin:0;">
-                      <button class="dropdown-item text-danger" type="submit">Logout</button>
-                    </form>
-                  </li>
-                </ul>
+
+                  <div class="nav-dd-divider"></div>
+
+                  <!-- Logout -->
+                  <form method="POST" action="${pageContext.request.contextPath}/logout" style="margin:0;">
+                    <button type="submit" class="nav-dd-item nav-dd-item--danger" role="menuitem">
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M13 15l3-5-3-5"/>
+                        <path d="M16 10H7"/>
+                        <path d="M7 19H3a1 1 0 01-1-1V2a1 1 0 011-1h4"/>
+                      </svg>
+                      Logout
+                    </button>
+                  </form>
+
+                </div><!-- /nav-dropdown-panel -->
               </li>
+
             </c:when>
             <c:otherwise>
               <li class="nav-item ms-lg-2">
                 <a class="btn btn-sm btn-ghost" href="${pageContext.request.contextPath}/register">Daftar</a>
               </li>
-              <li class="nav-item">
-                <a class="btn btn-sm btn-accent px-3" href="${pageContext.request.contextPath}/login">Login</a>
+              <li class="nav-item ms-lg-1">
+                <a class="btn btn-sm btn-dash-primary px-3" href="${pageContext.request.contextPath}/login">Login</a>
               </li>
             </c:otherwise>
           </c:choose>
         </ul>
-      </div>
-    </div>
+      </div><!-- /mainNav -->
+    </div><!-- /container -->
   </nav>
-  <main>
 
+  <script>
+  (function () {
+    var trigger = document.getElementById('profileTrigger');
+    var panel   = document.getElementById('profilePanel');
+    if (!trigger || !panel) return;
+
+    function open() {
+      panel.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      trigger.classList.add('is-open');
+    }
+    function close() {
+      panel.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.classList.remove('is-open');
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      panel.classList.contains('is-open') ? close() : open();
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!panel.contains(e.target) && e.target !== trigger) close();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  }());
+  </script>
+
+  <main>

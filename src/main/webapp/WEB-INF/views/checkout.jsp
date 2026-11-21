@@ -27,106 +27,110 @@
       <form id="checkoutForm" class="glass-card p-4" method="POST" action="${pageContext.request.contextPath}/checkout">
         <input type="hidden" name="id_produk" value="${product.idProduk}">
 
-        <h5 class="fw-bold text-white mb-3">Informasi Pembeli</h5>
+        <h5 class="fw-semibold text-white mb-3">Informasi Pembeli</h5>
 
         <c:choose>
           <c:when test="${sessionScope.user != null}">
-            <div class="p-3 rounded-3 mb-3" style="background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.3);">
-              <div class="fw-semibold text-white">Login sebagai <c:out value="${sessionScope.user.namaPelanggan}" /></div>
-              <div class="small text-muted-soft">
-                Email: <c:out value="${sessionScope.user.gmailPelanggan}" /> |
-                Level: <c:out value="${sessionScope.user.namaLevel}" />
-                <c:if test="${discountPercent > 0}">
-                  (Diskon <c:out value="${discountPercent}" />%)
-                </c:if>
+            <div class="buyer-info-card d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <div class="fw-semibold text-white" style="font-size:0.925rem;">
+                  <c:out value="${sessionScope.user.namaPelanggan}" />
+                </div>
+                <div style="font-size:0.80rem; color:#94a3b8; margin-top:2px;">
+                  <c:out value="${sessionScope.user.gmailPelanggan}" />
+                </div>
               </div>
+              <c:if test="${discountPercent > 0}">
+                <span class="buyer-tier-badge">
+                  <c:out value="${sessionScope.user.namaLevel}" /> &middot; Diskon <c:out value="${discountPercent}" />%
+                </span>
+              </c:if>
+              <c:if test="${discountPercent == 0}">
+                <span class="buyer-tier-badge"><c:out value="${sessionScope.user.namaLevel}" /></span>
+              </c:if>
             </div>
           </c:when>
           <c:otherwise>
             <div class="mb-3">
-              <label class="form-label fw-semibold">Nama Lengkap</label>
+              <label class="form-label small fw-semibold">Nama Lengkap</label>
               <input type="text" name="buyer_name" class="form-control form-dark" required placeholder="Nama penerima lisensi">
             </div>
             <div class="mb-3">
-              <label class="form-label fw-semibold">Email Penerima</label>
+              <label class="form-label small fw-semibold">Email Penerima</label>
               <input type="email" name="buyer_email" class="form-control form-dark" required placeholder="nama@email.com">
             </div>
           </c:otherwise>
         </c:choose>
 
-        <div class="mb-3" style="max-width:200px;">
-          <label class="form-label fw-semibold">Jumlah (Stok: <c:out value="${product.availableStock}" />)</label>
+        <div class="mb-4" style="max-width:220px;">
+          <div class="d-flex align-items-baseline gap-2 mb-1">
+            <label class="form-label small fw-semibold mb-0">Jumlah Pembelian</label>
+            <span style="font-size:0.75rem; color:#94a3b8;">Tersedia <c:out value="${product.availableStock}" /> unit</span>
+          </div>
           <input type="number" id="qtyInput" name="qty" class="form-control form-dark"
                  value="1" min="1" max="${sessionScope.user != null ? product.availableStock : 1}"
                  ${sessionScope.user == null ? 'readonly' : ''}>
           <c:if test="${sessionScope.user == null}">
-            <div class="form-text text-muted-soft">Pembelian tamu dibatasi 1 item. Login untuk membeli lebih banyak.</div>
+            <div class="form-text text-muted-soft" style="font-size:0.75rem;">Login untuk membeli lebih dari 1 unit.</div>
           </c:if>
         </div>
 
-        <h5 class="fw-bold text-white mt-4 mb-3">Metode Pembayaran</h5>
+        <h5 class="fw-semibold text-white mb-3">Metode Pembayaran</h5>
 
         <div class="d-grid gap-2">
           <c:if test="${sessionScope.user != null}">
-            <label class="p-3 rounded-3 d-flex align-items-center gap-3"
-                   style="background:rgba(10,8,18,0.85); border:1px solid var(--border); cursor:pointer;">
+            <label class="pay-method-label">
               <input type="radio" name="method" value="saldo" id="radioSaldo"
                      ${sessionScope.user.saldo >= effectivePrice ? '' : 'disabled'}>
               <div>
-                <div class="fw-semibold text-white">
-                  Saldo Akun (Rp <fmt:formatNumber value="${sessionScope.user.saldo}" groupingUsed="true" />)
+                <div class="pay-method-name">
+                  Saldo Akun
+                  <span style="font-size:0.78rem; color:#94a3b8; font-weight:400;">
+                    (Rp <fmt:formatNumber value="${sessionScope.user.saldo}" groupingUsed="true" />)
+                  </span>
                 </div>
-                <div class="small text-muted-soft" id="saldoHint">
-                  Pembayaran instan langsung selesai dan kunci lisensi langsung tampil.
+                <div class="pay-method-desc" id="saldoHint">
+                  <c:choose>
+                    <c:when test="${sessionScope.user.saldo >= effectivePrice}">Potong langsung dari saldo akun</c:when>
+                    <c:otherwise>Saldo tidak mencukupi</c:otherwise>
+                  </c:choose>
                 </div>
               </div>
             </label>
           </c:if>
 
-          <label class="p-3 rounded-3 d-flex align-items-center gap-3"
-                 style="background:rgba(10,8,18,0.85); border:1px solid var(--border); cursor:pointer;">
+          <label class="pay-method-label">
             <input type="radio" name="method" value="qris" checked>
             <div>
-              <div class="fw-semibold text-white">
+              <div class="pay-method-name">
                 QRIS via Sumopod
-                <c:choose>
-                  <c:when test="${sumopodConfigured}">
-                    <span class="badge text-bg-info ms-1">${sumopodSandbox ? 'Sandbox' : 'Live'}</span>
-                  </c:when>
-                  <c:otherwise>
-                    <span class="badge text-bg-warning ms-1">Simulasi Lokal</span>
-                  </c:otherwise>
-                </c:choose>
+                <c:if test="${debugMode && !sumopodConfigured}">
+                  <span class="badge-sandbox">Sandbox</span>
+                </c:if>
+                <c:if test="${sumopodConfigured && sumopodSandbox}">
+                  <span class="badge-sandbox">Sandbox</span>
+                </c:if>
               </div>
-              <div class="small text-muted-soft">
-                <c:choose>
-                  <c:when test="${sumopodConfigured}">
-                    Membuat tautan pembayaran QRIS di Sumopod (<c:out value="${sumopodSandbox ? 'Sandbox' : 'Production'}" />).
-                  </c:when>
-                  <c:otherwise>
-                    API key Sumopod belum diisi; pesanan dibuat sebagai tagihan pending lokal untuk uji coba.
-                  </c:otherwise>
-                </c:choose>
-              </div>
+              <div class="pay-method-desc">Pembayaran instan via scan QRIS</div>
             </div>
           </label>
 
-          <label class="p-3 rounded-3 d-flex align-items-center gap-3"
-                 style="background:rgba(10,8,18,0.85); border:1px solid var(--border); cursor:pointer;">
+          <label class="pay-method-label">
             <input type="radio" name="method" value="bank">
             <div>
-              <div class="fw-semibold text-white">Transfer Bank Virtual Account</div>
-              <div class="small text-muted-soft">BCA, Mandiri, BNI, atau BRI Virtual Account.</div>
+              <div class="pay-method-name">Transfer Bank Virtual Account</div>
+              <div class="pay-method-desc">BCA, Mandiri, BNI, atau BRI Virtual Account</div>
             </div>
           </label>
         </div>
 
         <div class="d-flex gap-2 mt-4">
-          <button type="submit" class="btn btn-accent px-4 py-2"
+          <button type="submit" class="btn btn-dash-primary px-4 py-2"
                   ${product.availableStock <= 0 ? 'disabled' : ''}>
             Buat Pesanan
           </button>
-          <a href="${pageContext.request.contextPath}/product?id=${product.idProduk}" class="btn btn-ghost px-4 py-2">Batal</a>
+          <a href="${pageContext.request.contextPath}/product?id=${product.idProduk}"
+             class="btn btn-cancel-neutral px-4 py-2">Batal</a>
         </div>
       </form>
     </div>
@@ -136,33 +140,35 @@
       <div class="glass-card p-4" id="summaryBox"
            data-unit-price="${effectivePrice}"
            data-saldo="${sessionScope.user != null ? sessionScope.user.saldo : 0}">
-        <h5 class="fw-bold text-white mb-3">Ringkasan Pesanan</h5>
+        <h5 class="fw-semibold text-white mb-3">Ringkasan Pesanan</h5>
+
         <div class="d-flex justify-content-between py-2 border-bottom border-secondary border-opacity-25">
-          <span class="text-muted-soft">Produk</span>
-          <span class="fw-semibold text-end"><c:out value="${product.namaProduk}" /></span>
+          <span class="text-muted-soft small">Produk</span>
+          <span class="fw-semibold text-end small" style="max-width:60%;"><c:out value="${product.namaProduk}" /></span>
         </div>
         <div class="d-flex justify-content-between py-2 border-bottom border-secondary border-opacity-25">
-          <span class="text-muted-soft">Harga Normal</span>
-          <span>Rp <fmt:formatNumber value="${product.hargaProduk}" groupingUsed="true" /></span>
+          <span class="text-muted-soft small">Harga Normal</span>
+          <span class="small num-tabular">Rp <fmt:formatNumber value="${product.hargaProduk}" groupingUsed="true" /></span>
         </div>
         <c:if test="${discountPercent > 0}">
           <div class="d-flex justify-content-between py-2 border-bottom border-secondary border-opacity-25">
-            <span class="text-muted-soft">Diskon Level (<c:out value="${discountPercent}" />%)</span>
-            <span class="text-success fw-semibold">
-              Rp <fmt:formatNumber value="${effectivePrice}" groupingUsed="true" /> / item
+            <span class="text-muted-soft small">Diskon <c:out value="${discountPercent}" />%</span>
+            <span class="small num-tabular" style="color:var(--green);">
+              &minus; Rp <fmt:formatNumber value="${product.hargaProduk - effectivePrice}" groupingUsed="true" />
             </span>
           </div>
         </c:if>
         <div class="d-flex justify-content-between py-2 border-bottom border-secondary border-opacity-25">
-          <span class="text-muted-soft">Jumlah</span>
-          <span id="sumQty">1</span>
+          <span class="text-muted-soft small">Jumlah</span>
+          <span class="small" id="sumQty">1</span>
         </div>
-        <div class="d-flex justify-content-between py-3 fs-5 fw-bold text-white">
-          <span>Total Pembayaran</span>
-          <span id="sumTotal">Rp <fmt:formatNumber value="${effectivePrice}" groupingUsed="true" /></span>
+        <div class="d-flex justify-content-between align-items-center py-3">
+          <span class="fw-semibold text-white">Total</span>
+          <span class="fs-5 fw-bold text-white num-tabular" id="sumTotal">Rp <fmt:formatNumber value="${effectivePrice}" groupingUsed="true" /></span>
         </div>
-        <p class="small text-muted-soft mb-0">
-          Kunci lisensi akan dialokasikan dari stok tersedia dan ditampilkan di halaman invoice setelah pembayaran selesai.
+
+        <p class="small text-muted-soft mb-0 mt-1" style="border-top:1px solid rgba(255,255,255,0.07); padding-top:12px;">
+          Kunci lisensi langsung tampil di halaman invoice setelah pembayaran lunas.
         </p>
       </div>
     </div>
@@ -200,8 +206,8 @@
         }
         if (saldoHint) {
           saldoHint.textContent = enough
-            ? 'Saldo cukup. Pembayaran instan langsung selesai.'
-            : 'Saldo tidak mencukupi untuk total ' + formatRp(total) + '.';
+            ? 'Potong langsung dari saldo akun'
+            : 'Saldo tidak mencukupi';
         }
       }
     }
@@ -212,4 +218,3 @@
 </script>
 
 <%@ include file="/WEB-INF/views/fragments/footer.jspf" %>
-
