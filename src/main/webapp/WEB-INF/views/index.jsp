@@ -2,43 +2,32 @@
 
 <div class="container py-4">
   <!-- Hero Banner -->
-  <section class="glass-card p-3 mb-4">
-    <div id="bannerCarousel" class="carousel slide" data-bs-ride="carousel">
-      <div class="carousel-inner rounded-4 overflow-hidden">
-        <div class="carousel-item active">
-          <img src="${pageContext.request.contextPath}/static/Image/Background/Background-1.png"
-               alt="Z-Store Banner" class="w-100" style="max-height:360px; object-fit:cover;">
-        </div>
-      </div>
-    </div>
+  <section class="hero-banner mb-4">
+    <img src="${pageContext.request.contextPath}/static/Image/Background/Background-1.png"
+         alt="Z-Store Banner" class="w-100">
   </section>
 
   <!-- Kategori / Provider -->
   <section id="kategori" class="mt-4">
-    <div class="d-flex justify-content-between align-items-end mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="text-white fw-bold section-heading mb-0">Kategori</h4>
-      <small class="text-muted-soft"><c:out value="${categories.size()}" /> kategori</small>
-    </div>
-
-    <div class="pills mb-3 d-flex gap-2 flex-wrap">
-      <a class="pill ${activeProviderId == 0 ? 'active' : ''}" href="${pageContext.request.contextPath}/home">Semua</a>
-      <c:forEach var="cat" items="${categories}">
-        <a class="pill ${activeProviderId == cat.idProvider ? 'active' : ''}"
-           href="${pageContext.request.contextPath}/home?provider=${cat.idProvider}">
-          <c:out value="${cat.nama}" />
-        </a>
-      </c:forEach>
+      <a href="${pageContext.request.contextPath}/home"
+         class="cat-all-link ${activeProviderId == 0 ? 'is-active' : ''}">
+        Semua Kategori
+      </a>
     </div>
 
     <div class="row g-3">
       <c:forEach var="cat" items="${categories}">
         <div class="col-6 col-md-3">
           <a href="${pageContext.request.contextPath}/home?provider=${cat.idProvider}" class="d-block h-100">
-            <div class="cat-card h-100">
-              <img src="${pageContext.request.contextPath}${cat.thumbnailImg}" alt="<c:out value='${cat.nama}'/>"
-                   onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
-              <div class="text-white fw-bold small"><c:out value="${cat.nama}" /></div>
-              <div class="text-muted-soft" style="font-size:0.75rem;"><c:out value="${cat.productCount}" /> produk</div>
+            <div class="cat-card h-100 ${activeProviderId == cat.idProvider ? 'active' : ''}">
+              <div class="cat-icon-wrap">
+                <img src="${pageContext.request.contextPath}${cat.thumbnailImg}" alt="<c:out value='${cat.nama}'/>"
+                     onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
+              </div>
+              <div class="text-white fw-semibold small"><c:out value="${cat.nama}" /></div>
+              <div class="text-muted-soft" style="font-size:0.72rem;"><c:out value="${cat.productCount}" /> produk</div>
             </div>
           </a>
         </div>
@@ -46,14 +35,15 @@
     </div>
   </section>
 
-  <!-- Filter Tag -->
-  <c:if test="${not empty tags}">
-    <section class="mt-4">
-      <div class="d-flex align-items-center gap-2 flex-wrap pills">
-        <span class="small text-muted-soft fw-semibold me-1">Tag:</span>
+  <!-- Katalog Produk -->
+  <section id="produk" class="mt-5">
+    <!-- Tag filter — sits just above the section header -->
+    <c:if test="${not empty tags}">
+      <div class="d-flex align-items-center gap-2 flex-wrap pills mb-4">
+        <span class="small text-muted-soft fw-semibold me-1" style="white-space:nowrap;">Filter Tag:</span>
         <a class="pill py-1 px-3 ${activeTagId == 0 ? 'active' : ''}"
            href="${pageContext.request.contextPath}/home${activeProviderId > 0 ? '?provider='.concat(activeProviderId) : ''}">
-          Semua Tag
+          Semua
         </a>
         <c:forEach var="t" items="${tags}">
           <a class="pill py-1 px-3 ${activeTagId == t.idTag ? 'active' : ''}"
@@ -62,12 +52,9 @@
           </a>
         </c:forEach>
       </div>
-    </section>
-  </c:if>
+    </c:if>
 
-  <!-- Katalog Produk -->
-  <section id="produk" class="mt-5">
-    <div class="d-flex justify-content-between align-items-end mb-3 flex-wrap gap-2">
+    <div class="d-flex justify-content-between align-items-end mb-3 flex-wrap gap-2 mt-4">
       <h4 class="text-white fw-bold section-heading mb-0">
         <c:choose>
           <c:when test="${not empty searchQuery}">Hasil Pencarian: "<c:out value="${searchQuery}" />"</c:when>
@@ -84,17 +71,16 @@
           <c:forEach var="p" items="${products}">
             <div class="col-6 col-md-3">
               <a href="${pageContext.request.contextPath}/product?id=${p.idProduk}" class="d-block h-100">
-                <div class="p-card p-tilt h-100">
-                  <div class="p-glare"></div>
+                <div class="p-card h-100">
+                  <c:choose>
+                    <c:when test="${p.availableStock > 0}">
+                      <span class="p-badge-stock">Stok: <c:out value="${p.availableStock}" /></span>
+                    </c:when>
+                    <c:otherwise>
+                      <span class="p-badge-stock empty">Habis</span>
+                    </c:otherwise>
+                  </c:choose>
                   <div class="p-thumb">
-                    <c:choose>
-                      <c:when test="${p.availableStock > 0}">
-                        <span class="p-badge-stock">Stok: <c:out value="${p.availableStock}" /></span>
-                      </c:when>
-                      <c:otherwise>
-                        <span class="p-badge-stock empty">Habis</span>
-                      </c:otherwise>
-                    </c:choose>
                     <img src="${pageContext.request.contextPath}${p.thumbnailImg}" alt="<c:out value='${p.namaProduk}'/>"
                          onerror="this.src='${pageContext.request.contextPath}/static/Image/Logo/Logo.png'">
                   </div>
@@ -145,24 +131,7 @@
   </c:if>
 </div>
 
-<script>
-  document.querySelectorAll('.p-tilt').forEach(el => {
-    const glare = el.querySelector('.p-glare');
-    el.addEventListener('mousemove', e => {
-      const r = el.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width;
-      const y = (e.clientY - r.top) / r.height;
-      el.style.transform = `perspective(700px) rotateX(${(y - 0.5) * -8}deg) rotateY(${(x - 0.5) * 8}deg) translateY(-4px)`;
-      if (glare) {
-        glare.style.setProperty('--mx', (x * 100) + '%');
-        glare.style.setProperty('--my', (y * 100) + '%');
-      }
-    });
-    el.addEventListener('mouseleave', () => {
-      el.style.transform = '';
-    });
-  });
-</script>
+
 
 <%@ include file="/WEB-INF/views/fragments/footer.jspf" %>
 

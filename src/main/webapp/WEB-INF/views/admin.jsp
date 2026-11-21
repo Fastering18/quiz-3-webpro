@@ -170,7 +170,7 @@
       <div class="col-lg-8">
         <div class="glass-card p-4">
           <h5 class="fw-bold text-white mb-3">Daftar Produk (<c:out value="${products.size()}" />)</h5>
-          <div class="table-responsive" style="max-height:620px;">
+          <div class="admin-table-wrap">
             <table class="table table-dark-custom table-hover align-middle small">
               <thead>
                 <tr>
@@ -255,7 +255,7 @@
       <div class="col-lg-8">
         <div class="glass-card p-4">
           <h5 class="fw-bold text-white mb-3">Daftar Kategori / Provider</h5>
-          <div class="table-responsive">
+          <div class="admin-table-wrap">
             <table class="table table-dark-custom table-hover align-middle small">
               <thead>
                 <tr>
@@ -386,7 +386,7 @@
               </select>
             </form>
           </div>
-          <div class="table-responsive" style="max-height:600px;">
+          <div class="admin-table-wrap">
             <table class="table table-dark-custom table-hover align-middle small">
               <thead>
                 <tr>
@@ -452,7 +452,7 @@
       <div class="col-lg-8">
         <div class="glass-card p-4">
           <h5 class="fw-bold text-white mb-3">Daftar Tag</h5>
-          <div class="table-responsive">
+          <div class="admin-table-wrap">
             <table class="table table-dark-custom table-hover align-middle small">
               <thead>
                 <tr>
@@ -491,7 +491,7 @@
   <c:if test="${activeTab == 'customers'}">
     <div class="glass-card p-4">
       <h5 class="fw-bold text-white mb-3">Kelola Pelanggan &amp; Level</h5>
-      <div class="table-responsive">
+      <div class="admin-table-wrap">
         <table class="table table-dark-custom table-hover align-middle small">
           <thead>
             <tr>
@@ -537,7 +537,7 @@
                       </select>
                     </div>
                     <div class="col-md-2">
-                      <button type="submit" class="btn btn-sm btn-accent w-100">Simpan</button>
+                      <button type="submit" class="btn btn-sm btn-dash-primary w-100">Simpan</button>
                     </div>
                   </form>
                 </td>
@@ -564,7 +564,7 @@
   <c:if test="${activeTab == 'transactions'}">
     <div class="glass-card p-4">
       <h5 class="fw-bold text-white mb-3">Kelola Transaksi &amp; Invoice</h5>
-      <div class="table-responsive">
+      <div class="admin-table-wrap">
         <table class="table table-dark-custom table-hover align-middle small">
           <thead>
             <tr>
@@ -598,7 +598,7 @@
                       <option value="Expired" ${t.status == 'Expired' ? 'selected' : ''}>Expired</option>
                       <option value="Cancelled" ${t.status == 'Cancelled' ? 'selected' : ''}>Cancelled</option>
                     </select>
-                    <button type="submit" class="btn btn-sm btn-accent">Ubah</button>
+                    <button type="submit" class="btn btn-sm btn-dash-primary">Ubah</button>
                   </form>
                 </td>
                 <td class="text-end text-nowrap">
@@ -619,6 +619,240 @@
     </div>
   </c:if>
 </div>
+
+<script>
+/**
+ * AdminCustomSelect — replaces every .form-dark <select> on the Admin page
+ * with a custom dark dropdown while keeping the original <select> in the DOM
+ * so that all form submissions, onchange events, and JSTL-selected values
+ * continue to work without any changes to the backend.
+ */
+(function () {
+  'use strict';
+
+  var SEARCH_THRESHOLD = 10; // show search input if option count exceeds this
+
+  /* Chevron SVG markup */
+  var CHEVRON = '<svg class="csd-chevron" viewBox="0 0 16 16" fill="none" '
+    + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+    + 'stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>';
+
+  /* Track the currently open dropdown so we can close it when another opens */
+  var currentOpen = null;
+
+  function init() {
+    document.querySelectorAll('select.form-dark, select.form-select-sm.form-dark')
+      .forEach(function (sel) {
+        buildCustomSelect(sel);
+      });
+
+    /* Close on outside click */
+    document.addEventListener('click', function (e) {
+      if (currentOpen && !currentOpen.contains(e.target)) {
+        closeMenu(currentOpen);
+      }
+    });
+
+    /* Close on Esc */
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && currentOpen) {
+        closeMenu(currentOpen);
+      }
+    });
+  }
+
+  function buildCustomSelect(sel) {
+    /* ── Create wrapper ── */
+    var wrap = document.createElement('div');
+    wrap.className = 'csd-wrap';
+    if (sel.classList.contains('form-select-sm')) {
+      wrap.classList.add('csd-sm');
+    }
+
+    /* Insert wrapper before select, then move select inside */
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel);
+
+    /* ── Trigger button ── */
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'csd-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+
+    var label = document.createElement('span');
+    label.className = 'csd-trigger-label';
+    trigger.appendChild(label);
+    trigger.insertAdjacentHTML('beforeend', CHEVRON);
+    wrap.appendChild(trigger);
+
+    /* ── Menu panel ── */
+    var menu = document.createElement('div');
+    menu.className = 'csd-menu';
+    menu.setAttribute('role', 'listbox');
+
+    var optionCount = sel.options.length;
+
+    /* Search input for long lists */
+    var searchInput = null;
+    if (optionCount > SEARCH_THRESHOLD) {
+      var searchWrap = document.createElement('div');
+      searchWrap.className = 'csd-search-wrap';
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'csd-search';
+      searchInput.placeholder = 'Cari...';
+      searchInput.setAttribute('aria-label', 'Cari pilihan');
+      searchWrap.appendChild(searchInput);
+      menu.appendChild(searchWrap);
+    }
+
+    var list = document.createElement('div');
+    list.className = 'csd-list';
+    menu.appendChild(list);
+    wrap.appendChild(menu);
+
+    /* ── Build option items ── */
+    function buildOptions() {
+      list.innerHTML = '';
+      Array.prototype.forEach.call(sel.options, function (opt) {
+        var item = document.createElement('div');
+        item.className = 'csd-opt' + (opt.selected ? ' is-selected' : '');
+        item.textContent = opt.text;
+        item.dataset.value = opt.value;
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
+
+        item.addEventListener('click', function () {
+          selectOption(wrap, sel, trigger, label, list, item);
+        });
+
+        list.appendChild(item);
+      });
+    }
+
+    /* ── Sync label from current <select> value ── */
+    function syncLabel() {
+      var selected = sel.options[sel.selectedIndex];
+      label.textContent = selected ? selected.text : '';
+    }
+
+    /* ── Toggle open/close ── */
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (menu.classList.contains('is-open')) {
+        closeMenu(wrap);
+      } else {
+        if (currentOpen && currentOpen !== wrap) {
+          closeMenu(currentOpen);
+        }
+        openMenu(wrap, trigger, menu, searchInput, list);
+      }
+    });
+
+    /* ── Search filter ── */
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        var q = searchInput.value.toLowerCase();
+        list.querySelectorAll('.csd-opt').forEach(function (item) {
+          item.classList.toggle('is-hidden',
+            q.length > 0 && item.textContent.toLowerCase().indexOf(q) === -1);
+        });
+      });
+
+      /* Prevent trigger-click closing when user clicks inside search */
+      searchInput.addEventListener('click', function (e) {
+        e.stopPropagation();
+      });
+    }
+
+    /* ── Watch for programmatic changes to the original <select> ── */
+    sel.addEventListener('change', function () {
+      syncLabel();
+      list.querySelectorAll('.csd-opt').forEach(function (item) {
+        var isSel = item.dataset.value === sel.value;
+        item.classList.toggle('is-selected', isSel);
+        item.setAttribute('aria-selected', isSel ? 'true' : 'false');
+      });
+    });
+
+    /* Observe option changes (for dynamically populated selects) */
+    var mo = new MutationObserver(function () {
+      buildOptions();
+      syncLabel();
+    });
+    mo.observe(sel, { childList: true });
+
+    /* Initial build */
+    buildOptions();
+    syncLabel();
+  }
+
+  function openMenu(wrap, trigger, menu, searchInput, list) {
+    menu.classList.add('is-open');
+    trigger.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    currentOpen = wrap;
+
+    /* Reset search */
+    if (searchInput) {
+      searchInput.value = '';
+      list.querySelectorAll('.csd-opt').forEach(function (item) {
+        item.classList.remove('is-hidden');
+      });
+      /* Focus search after open */
+      setTimeout(function () { searchInput.focus(); }, 30);
+    }
+
+    /* Scroll selected item into view */
+    var selected = list.querySelector('.csd-opt.is-selected');
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function closeMenu(wrap) {
+    var trigger = wrap.querySelector('.csd-trigger');
+    var menu    = wrap.querySelector('.csd-menu');
+    if (!menu) return;
+    menu.classList.remove('is-open');
+    if (trigger) {
+      trigger.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+    if (currentOpen === wrap) currentOpen = null;
+  }
+
+  function selectOption(wrap, sel, trigger, label, list, item) {
+    /* Update native <select> */
+    sel.value = item.dataset.value;
+
+    /* Update label */
+    var selectedOpt = sel.options[sel.selectedIndex];
+    label.textContent = selectedOpt ? selectedOpt.text : item.textContent;
+
+    /* Update selected state on items */
+    list.querySelectorAll('.csd-opt').forEach(function (opt) {
+      var isSel = opt === item;
+      opt.classList.toggle('is-selected', isSel);
+      opt.setAttribute('aria-selected', isSel ? 'true' : 'false');
+    });
+
+    closeMenu(wrap);
+
+    /* Fire native change event so onchange="this.form.submit()" still works */
+    var ev = new Event('change', { bubbles: true });
+    sel.dispatchEvent(ev);
+  }
+
+  /* Run after DOM is ready */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());
+</script>
 
 <%@ include file="/WEB-INF/views/fragments/footer.jspf" %>
 
