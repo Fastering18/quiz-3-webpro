@@ -127,8 +127,9 @@
             <div class="mb-2">
               <label class="form-label small fw-semibold">Image</label>
               <c:set var="prodHasThumb" value="${editingProduct != null && editingProduct.hasCustomThumbnail}" />
-              <div class="img-upload-box" data-img-upload>
+              <div class="img-upload-box" data-img-upload data-upload-folder="products">
                 <input type="file" name="thumbnail_file" class="img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="hidden" name="uploaded_thumbnail_url" value="" class="img-upload-url">
                 <input type="hidden" name="remove_thumbnail" value="0" class="img-upload-remove-flag">
                 <div class="img-upload-trigger" role="button" tabindex="0" title="Pilih gambar produk">
                   <span class="img-upload-icon">
@@ -280,8 +281,9 @@
             <div class="mb-3">
               <label class="form-label small fw-semibold">Image</label>
               <c:set var="provHasThumb" value="${editingProvider != null && editingProvider.hasCustomThumbnail}" />
-              <div class="img-upload-box" data-img-upload>
+              <div class="img-upload-box" data-img-upload data-upload-folder="providers">
                 <input type="file" name="thumbnail_file" class="img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="hidden" name="uploaded_thumbnail_url" value="" class="img-upload-url">
                 <input type="hidden" name="remove_thumbnail" value="0" class="img-upload-remove-flag">
                 <div class="img-upload-trigger" role="button" tabindex="0" title="Pilih gambar kategori">
                   <span class="img-upload-icon">
@@ -944,7 +946,7 @@
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  /* Reusable Image Upload Box */
+  /* Reusable Image Upload Box with direct-to-Neon-S3 presigned PUT upload */
   function initImageUploads() {
     document.querySelectorAll('[data-img-upload]').forEach(function (box) {
       var input = box.querySelector('.img-upload-input');
@@ -952,7 +954,11 @@
       var nameEl = box.querySelector('.img-upload-name');
       var clearBtn = box.querySelector('.img-upload-clear');
       var removeFlag = box.querySelector('.img-upload-remove-flag');
+      var uploadedUrlField = box.querySelector('.img-upload-url');
       var placeholder = nameEl.dataset.placeholder || 'Pilih gambar...';
+      var folder = box.dataset.uploadFolder || 'products';
+      var form = box.closest('form');
+      var isUploading = false;
 
       trigger.addEventListener('click', function () { input.click(); });
       trigger.addEventListener('keydown', function (e) {
@@ -966,16 +972,66 @@
         nameEl.classList.remove('is-placeholder');
         clearBtn.classList.remove('is-hidden');
         removeFlag.value = '0';
+        if (uploadedUrlField) uploadedUrlField.value = '';
       });
 
       clearBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         input.value = '';
+        if (uploadedUrlField) uploadedUrlField.value = '';
         removeFlag.value = '1';
         nameEl.textContent = placeholder;
         nameEl.classList.add('is-placeholder');
         clearBtn.classList.add('is-hidden');
       });
+
+      if (form && uploadedUrlField) {
+        form.addEventListener('submit', async function (e) {
+          var file = input.files && input.files[0];
+          if (!file || uploadedUrlField.value) return;
+          e.preventDefault();
+          if (isUploading) return;
+          isUploading = true;
+          var submitBtn = form.querySelector('button[type="submit"]');
+          var origText = submitBtn ? submitBtn.textContent : '';
+          if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Mengunggah gambar...'; }
+
+          try {
+            var body = new URLSearchParams({
+              folder: folder,
+              filename: file.name,
+              content_type: file.type || 'image/png',
+              size: String(file.size)
+            });
+            var preRes = await fetch('${pageContext.request.contextPath}/upload/presign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+              body: body.toString()
+            });
+            var preData = await preRes.json();
+            if (!preRes.ok || !preData.uploadUrl) {
+              throw new Error(preData.error || 'Gagal menyiapkan upload ke Neon S3.');
+            }
+
+            var putRes = await fetch(preData.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': preData.contentType },
+              body: file
+            });
+            if (!putRes.ok) {
+              throw new Error('Upload ke Neon S3 gagal (HTTP ' + putRes.status + ').');
+            }
+
+            uploadedUrlField.value = preData.publicUrl;
+            input.value = '';
+            form.submit();
+          } catch (err) {
+            isUploading = false;
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origText; }
+            alert(err.message || 'Gagal mengunggah gambar.');
+          }
+        });
+      }
     });
   }
 

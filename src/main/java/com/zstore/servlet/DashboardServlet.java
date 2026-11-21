@@ -105,19 +105,29 @@ public class DashboardServlet extends HttpServlet {
         String newAvatar = oldAvatar;
         boolean updateAvatar = false;
         boolean removeAvatar = "1".equals(FormatUtil.trimOrEmpty(req.getParameter("remove_avatar")));
+        String directUploadedUrl = FormatUtil.trimOrEmpty(req.getParameter("uploaded_avatar_url"));
 
-        Part avatarPart = getFilePartIfMultipart(req, "avatar_file");
-        if (avatarPart != null && avatarPart.getSize() > 0) {
-            try {
-                newAvatar = s3Client.uploadImagePart(avatarPart, "avatars");
-                updateAvatar = true;
-            } catch (IOException e) {
-                session.setAttribute("flashError", e.getMessage());
+        if (!directUploadedUrl.isEmpty()) {
+            if (!s3Client.isValidManagedUrl(directUploadedUrl, "avatars")) {
+                session.setAttribute("flashError", "URL foto profil tidak valid.");
                 return;
             }
-        } else if (removeAvatar) {
-            newAvatar = null;
+            newAvatar = directUploadedUrl;
             updateAvatar = true;
+        } else {
+            Part avatarPart = getFilePartIfMultipart(req, "avatar_file");
+            if (avatarPart != null && avatarPart.getSize() > 0) {
+                try {
+                    newAvatar = s3Client.uploadImagePart(avatarPart, "avatars");
+                    updateAvatar = true;
+                } catch (IOException e) {
+                    session.setAttribute("flashError", e.getMessage());
+                    return;
+                }
+            } else if (removeAvatar) {
+                newAvatar = null;
+                updateAvatar = true;
+            }
         }
 
         pelangganDAO.updateProfile(userId, name, newPass, newAvatar, updateAvatar);

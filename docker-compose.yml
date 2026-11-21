@@ -52,6 +52,25 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: zstore-cloudflared
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    mem_limit: 64m
+    depends_on:
+      zstore:
+        condition: service_healthy
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    command: tunnel --no-autoupdate run
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   caddy_data:
   caddy_config:

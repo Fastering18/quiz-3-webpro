@@ -503,6 +503,16 @@ public class AdminServlet extends HttpServlet {
                                             String s3Folder, HttpSession session)
             throws IOException, ServletException {
         boolean removeThumb = "1".equals(FormatUtil.trimOrEmpty(req.getParameter("remove_thumbnail")));
+        String directUploadedUrl = FormatUtil.trimOrEmpty(req.getParameter("uploaded_thumbnail_url"));
+
+        if (!directUploadedUrl.isEmpty()) {
+            if (!s3Client.isValidManagedUrl(directUploadedUrl, s3Folder)) {
+                session.setAttribute("flashError", "URL gambar upload tidak valid.");
+                return null;
+            }
+            return directUploadedUrl;
+        }
+
         Part filePart = getFilePartIfMultipart(req, "thumbnail_file");
 
         if (filePart != null && filePart.getSize() > 0) {

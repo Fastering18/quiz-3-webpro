@@ -23,20 +23,129 @@ import javax.servlet.http.Part;
 
 /**
  * Lightweight pure-Java AWS SigV4 path-style S3 client for Neon Object Storage.
- * Uses HttpURLConnection so Tomcat reloads cleanly without leaking selector threads.
+ * Supports both direct browser uploads via short-lived SigV4 Presigned PUT URLs
+ * and server-side uploads/deletes via HttpURLConnection.
  */
 public class S3Client {
 
-    private static final long MAX_IMAGE_BYTES = 5L * 1024L * 1024L;
+    public static final long MAX_IMAGE_BYTES = 5L * 1024L * 1024L;
     private static final int TIMEOUT_MS = 20000;
+    private static final int PRESIGN_EXPIRES_SECONDS = 300;
     private static final DateTimeFormatter AMZ_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
     private static final DateTimeFormatter DATE_STAMP_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<>(
             Arrays.asList("png", "jpg", "jpeg", "webp", "gif")
     );
 
+    public static final class PresignedUpload {
+        private final String uploadUrl;
+        private final String publicUrl;
+        private final String contentType;
+        private final String key;
+
+        public PresignedUpload(String uploadUrl, String publicUrl, String contentType, String key) {
+            this.uploadUrl = uploadUrl;
+            this.publicUrl = publicUrl;
+            this.contentType = contentType;
+            this.key = key;
+        }
+
+        public String getUploadUrl() { return uploadUrl; }
+        public String getPublicUrl() { return publicUrl; }
+        public String getContentType() { return contentType; }
+        public String getKey() { return key; }
+    }
+
     public boolean isConfigured() {
         return S3Config.isConfigured();
+    }
+
+    /**
+     * Generates a 5-minute AWS SigV4 Presigned PUT URL so the browser can upload
+     * directly to Neon Object Storage without routing large files through the VPS.
+     */
+    public PresignedUpload createPresignedPutUrl(String folder, String submittedFileName,
+                                                 String contentType, long fileSizeBytes) throws IOException {
+        if (!isConfigured()) {
+            throw new IOException("Neon S3 belum dikonfigurasi. Periksa variabel AWS_ENDPOINT_URL_S3 dan kredensial S3.");
+        }
+        if (fileSizeBytes <= 0) {
+            throw new IOException("File gambar kosong.");
+        }
+        if (fileSizeBytes > MAX_IMAGE_BYTES) {
+            throw new IOException("Ukuran gambar maksimal 5 MB.");
+        }
+
+        String ext = extractExtension(submittedFileName);
+        if (ext.isEmpty()) {
+            ext = extensionFromContentType(contentType);
+        }
+        if (!ALLOWED_EXTENSIONS.contains(ext)) {
+            throw new IOException("Format gambar harus PNG, JPG, JPEG, WEBP, atau GIF.");
+        }
+        String resolvedCt = (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/"))
+                ? contentTypeForExtension(ext)
+                : contentType.trim();
+
+        String safeBase = sanitizeBaseName(submittedFileName == null ? "image" : submittedFileName, ext);
+        String uniquePrefix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String cleanFolder = folder == null ? "uploads" : folder.replaceAll("^/+|/+$", "");
+        String key = cleanFolder + "/" + uniquePrefix + "-" + safeBase + "." + ext;
+        String encodedPath = "/" + encodeSegment(S3Config.getBucket()) + "/" + encodeKey(key);
+
+        try {
+            URL baseUrl = new URL(S3Config.getEndpoint() + encodedPath);
+            String host = baseUrl.getHost() + (baseUrl.getPort() != -1 ? ":" + baseUrl.getPort() : "");
+            ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+            String amzDate = AMZ_DATE_FMT.format(now);
+            String dateStamp = DATE_STAMP_FMT.format(now);
+            String region = S3Config.getRegion();
+            String scope = dateStamp + "/" + region + "/s3/aws4_request";
+
+            String canonicalQuery = "X-Amz-Algorithm=AWS4-HMAC-SHA256"
+                    + "&X-Amz-Credential=" + encodeSegment(S3Config.getAccessKey() + "/" + scope)
+                    + "&X-Amz-Date=" + amzDate
+                    + "&X-Amz-Expires=" + PRESIGN_EXPIRES_SECONDS
+                    + "&X-Amz-SignedHeaders=host";
+
+            String canonicalHeaders = "host:" + host + "\n";
+            String canonicalRequest = "PUT\n"
+                    + encodedPath + "\n"
+                    + canonicalQuery + "\n"
+                    + canonicalHeaders + "\n"
+                    + "host\n"
+                    + "UNSIGNED-PAYLOAD";
+
+            String stringToSign = "AWS4-HMAC-SHA256\n"
+                    + amzDate + "\n"
+                    + scope + "\n"
+                    + sha256Hex(canonicalRequest.getBytes(StandardCharsets.UTF_8));
+
+            byte[] signingKey = getSignatureKey(S3Config.getSecretKey(), dateStamp, region, "s3");
+            String signature = toHex(hmacSha256(signingKey, stringToSign));
+
+            String publicUrl = S3Config.getEndpoint() + encodedPath;
+            String presignedUrl = publicUrl + "?" + canonicalQuery + "&X-Amz-Signature=" + signature;
+            return new PresignedUpload(presignedUrl, publicUrl, resolvedCt, key);
+        } catch (Exception e) {
+            throw new IOException("Gagal membuat presigned URL S3: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Checks that a client-submitted S3 URL belongs to our configured Neon S3 bucket and expected folder.
+     */
+    public boolean isValidManagedUrl(String url, String expectedFolder) {
+        if (url == null || url.trim().isEmpty() || !isConfigured()) {
+            return false;
+        }
+        String trimmed = url.trim();
+        if (trimmed.contains("..") || trimmed.contains("?") || trimmed.contains("#") || trimmed.length() > 300) {
+            return false;
+        }
+        String cleanFolder = expectedFolder == null ? "" : expectedFolder.replaceAll("^/+|/+$", "");
+        String expectedPrefix = S3Config.getPublicBaseUrl() + "/" + cleanFolder + "/";
+        return trimmed.startsWith(expectedPrefix) && trimmed.length() > expectedPrefix.length();
     }
 
     /**
@@ -105,7 +214,7 @@ public class S3Client {
 
     /**
      * Deletes an object if the URL points to our configured Neon S3 bucket.
-     * Best-effort: does not throw if object is missing or URL is external/local.
+     * Best-effort: does not throw if object is missing or network is blocked.
      */
     public void deleteByUrl(String url) {
         if (url == null || url.trim().isEmpty() || !isConfigured()) {
@@ -115,7 +224,6 @@ public class S3Client {
         if (!url.startsWith(basePrefix)) {
             return;
         }
-        // Keep seeded shared catalog backup images unless explicitly replaced in uploads/avatars/products/providers
         String relativeEncodedPath = "/" + encodeSegment(S3Config.getBucket()) + "/"
                 + url.substring(basePrefix.length());
         try {
@@ -231,6 +339,10 @@ public class S3Client {
 
     private static String sanitizeBaseName(String filename, String ext) {
         String base = filename;
+        int slash = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+        if (slash >= 0) {
+            base = base.substring(slash + 1);
+        }
         int dot = base.lastIndexOf('.');
         if (dot > 0) {
             base = base.substring(0, dot);
@@ -351,4 +463,3 @@ public class S3Client {
         }
     }
 }
-

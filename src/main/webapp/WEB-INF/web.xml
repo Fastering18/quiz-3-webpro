@@ -108,6 +108,15 @@
     </servlet-mapping>
 
     <servlet>
+        <servlet-name>UploadPresignServlet</servlet-name>
+        <servlet-class>com.zstore.servlet.UploadPresignServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>UploadPresignServlet</servlet-name>
+        <url-pattern>/upload/presign</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>HealthServlet</servlet-name>
         <servlet-class>com.zstore.servlet.HealthServlet</servlet-class>
     </servlet>

@@ -96,8 +96,9 @@
               </c:choose>
             </div>
             <div class="flex-grow-1" style="min-width:240px;">
-              <div class="img-upload-box" data-img-upload data-preview-target="#avatarFormPreview">
+              <div class="img-upload-box" data-img-upload data-upload-folder="avatars" data-preview-target="#avatarFormPreview">
                 <input type="file" name="avatar_file" class="img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="hidden" name="uploaded_avatar_url" value="" class="img-upload-url">
                 <input type="hidden" name="remove_avatar" value="0" class="img-upload-remove-flag">
                 <div class="img-upload-trigger" role="button" tabindex="0" title="Pilih foto profil">
                   <span class="img-upload-icon">
@@ -246,15 +247,19 @@
     if (e.key === 'Escape' && modal.classList.contains('is-open')) closeCancelModal();
   });
 
-  /* Avatar upload widget */
+  /* Avatar upload widget with direct-to-Neon-S3 presigned PUT upload */
   document.querySelectorAll('[data-img-upload]').forEach(function (box) {
     var input = box.querySelector('.img-upload-input');
     var trigger = box.querySelector('.img-upload-trigger');
     var nameEl = box.querySelector('.img-upload-name');
     var clearBtn = box.querySelector('.img-upload-clear');
     var removeFlag = box.querySelector('.img-upload-remove-flag');
+    var uploadedUrlField = box.querySelector('.img-upload-url');
     var previewEl = box.dataset.previewTarget ? document.querySelector(box.dataset.previewTarget) : null;
     var placeholder = nameEl.dataset.placeholder || 'Pilih gambar...';
+    var folder = box.dataset.uploadFolder || 'avatars';
+    var form = box.closest('form');
+    var isUploading = false;
 
     trigger.addEventListener('click', function () { input.click(); });
     trigger.addEventListener('keydown', function (e) {
@@ -268,6 +273,7 @@
       nameEl.classList.remove('is-placeholder');
       clearBtn.classList.remove('is-hidden');
       removeFlag.value = '0';
+      if (uploadedUrlField) uploadedUrlField.value = '';
       if (previewEl) {
         var reader = new FileReader();
         reader.onload = function (ev) {
@@ -280,6 +286,7 @@
     clearBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       input.value = '';
+      if (uploadedUrlField) uploadedUrlField.value = '';
       removeFlag.value = '1';
       nameEl.textContent = placeholder;
       nameEl.classList.add('is-placeholder');
@@ -288,6 +295,54 @@
         previewEl.textContent = previewEl.dataset.initial || 'U';
       }
     });
+
+    if (form && uploadedUrlField) {
+      form.addEventListener('submit', async function (e) {
+        var file = input.files && input.files[0];
+        if (!file || uploadedUrlField.value) return;
+        e.preventDefault();
+        if (isUploading) return;
+        isUploading = true;
+        var submitBtn = form.querySelector('button[type="submit"]');
+        var origText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Mengunggah foto...'; }
+
+        try {
+          var body = new URLSearchParams({
+            folder: folder,
+            filename: file.name,
+            content_type: file.type || 'image/png',
+            size: String(file.size)
+          });
+          var preRes = await fetch('${pageContext.request.contextPath}/upload/presign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: body.toString()
+          });
+          var preData = await preRes.json();
+          if (!preRes.ok || !preData.uploadUrl) {
+            throw new Error(preData.error || 'Gagal menyiapkan upload ke Neon S3.');
+          }
+
+          var putRes = await fetch(preData.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': preData.contentType },
+            body: file
+          });
+          if (!putRes.ok) {
+            throw new Error('Upload ke Neon S3 gagal (HTTP ' + putRes.status + ').');
+          }
+
+          uploadedUrlField.value = preData.publicUrl;
+          input.value = '';
+          form.submit();
+        } catch (err) {
+          isUploading = false;
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origText; }
+          alert(err.message || 'Gagal mengunggah gambar.');
+        }
+      });
+    }
   });
 }());
 </script>

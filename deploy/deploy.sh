@@ -40,6 +40,13 @@ fi
 
 docker compose up -d caddy
 docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || true
+
+# Start Cloudflare Tunnel automatically if CLOUDFLARE_TUNNEL_TOKEN is configured in .env
+if grep -qE '^CLOUDFLARE_TUNNEL_TOKEN=.+' "$APP_DIR/.env"; then
+  docker compose --profile tunnel pull cloudflared
+  docker compose --profile tunnel up -d cloudflared
+fi
+
 docker image prune -f >/dev/null 2>&1 || true
 
 echo "Deploy succeeded."
