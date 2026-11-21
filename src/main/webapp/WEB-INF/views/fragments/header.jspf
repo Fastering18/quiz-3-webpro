@@ -50,7 +50,7 @@
             </svg>
             <input class="form-control nav-search" type="search" name="q"
                    value="<c:out value='${searchQuery}'/>"
-                   placeholder="Cari produk, kategori, atau tag (pisahkan koma)..."
+                   placeholder="Cari produk, kategori, atau berdasarkan tags"
                    aria-label="Cari produk">
           </div>
         </form>

@@ -43,7 +43,7 @@
     <c:if test="${not empty tags}">
       <div class="d-flex align-items-center gap-2 flex-wrap pills mb-4">
         <span class="small text-muted-soft fw-semibold me-1" style="white-space:nowrap;">
-          Filter Tag (pilih satu atau lebih):
+          Filter Tags:
         </span>
         <a class="pill py-1 px-3 ${empty activeTagIds ? 'active' : ''}"
            href="${clearTagsUrl}">

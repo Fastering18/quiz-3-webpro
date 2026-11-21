@@ -1,5 +1,7 @@
 # Z-Store (Porting JSP dan Servlet)
 
+**Demo / Live URL:** https://zstore.brahmanapriambudi.my.id/
+
 Aplikasi toko lisensi perangkat lunak digital berbasis Java Server Pages (JSP) dan Servlet yang diporting dari proyek `Website-Toko` untuk tugas mata kuliah **EF234301 Pemrograman Web (D) - Quiz 2**.
 
 > Proyek asal `Website-Toko` dikembangkan menggunakan Go (Gin, GORM, dan PostgreSQL). Pada repositori ini, seluruh antarmuka katalog, skema basis data, alur transaksi, serta operasi Create, Read, Update, dan Delete (CRUD) diimplementasikan ulang menggunakan Java 17, JSP/JSTL, Servlet 3.1, JDBC, MySQL/TiDB Cloud, pembayaran QRIS Sumopod, serta penyimpanan gambar pada Neon Object Storage (S3).

@@ -14,7 +14,7 @@
         <a href="${pageContext.request.contextPath}/dashboard" class="mx-2">Dashboard</a>
       </div>
       <div class="small text-muted-soft mt-2">
-        &copy; 2026 Z-Store JSP. EF234301 Web Programming.
+        &copy; 2026 Kelompok W for Webpro (D) { Azka, Brahmana, Budi } 
       </div>
     </div>
   </footer>
