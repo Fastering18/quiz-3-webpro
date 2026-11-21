@@ -1,10 +1,16 @@
-# Z-Store (Porting JSP dan Servlet)
+<div align="center">
 
-**Demo / Live URL:** https://zstore.brahmanapriambudi.my.id/
+# Z-Store: Toko Online Key  
 
-Aplikasi toko lisensi perangkat lunak digital berbasis Java Server Pages (JSP) dan Servlet yang diporting dari proyek `Website-Toko` untuk tugas mata kuliah **EF234301 Pemrograman Web (D) - Quiz 2**.
+<a href="https://zstore.brahmanapriambudi.my.id/">
+  <img src="docs/landing.png" alt="Tampilan Halaman Utama Z-Store" width="900" />
+</a>
 
-> Proyek asal `Website-Toko` dikembangkan menggunakan Go (Gin, GORM, dan PostgreSQL). Pada repositori ini, seluruh antarmuka katalog, skema basis data, alur transaksi, serta operasi Create, Read, Update, dan Delete (CRUD) diimplementasikan ulang menggunakan Java 17, JSP/JSTL, Servlet 3.1, JDBC, MySQL/TiDB Cloud, pembayaran QRIS Sumopod, serta penyimpanan gambar pada Neon Object Storage (S3).
+**Demo / Live URL:** [https://zstore.brahmanapriambudi.my.id/](https://zstore.brahmanapriambudi.my.id/)
+
+Aplikasi toko lisensi perangkat lunak digital berbasis Jakarta Server Pages (JSP) dan Servlet yang diporting dari proyek `Website-Toko` untuk tugas mata kuliah **EF234301 Pemrograman Web (D) - Quiz 2**.
+
+</div>
 
 ---
 
@@ -29,13 +35,27 @@ Aplikasi toko lisensi perangkat lunak digital berbasis Java Server Pages (JSP) d
 - **Stocks** menyimpan masing-masing kode lisensi milik sebuah **Produk** dengan status `Tersedia` atau `Terjual`.
 - **Transaksi** mencatat pembelian (baik tamu maupun **Pelanggan** terdaftar), berelasi 1-ke-1 dengan **Invoice** (berdasarkan `External_ID` sebagai Order ID), dan memiliki satu atau lebih **Detail_Transaksi** yang merujuk ke baris **Stocks** yang diklaim.
 
-![cdm](/diagrams/cdm.png)
+<p align="center">
+  <img src="docs/diagrams/cdm.png" alt="Conceptual Data Model Z-Store" width="850" />
+</p>
 
 ### 2.2 Physical Data Model (PDM)
 
-![pdm](/diagrams/pdm.png)
+<p align="center">
+  <img src="docs/diagrams/pdm.png" alt="Physical Data Model Z-Store" width="850" />
+</p>
 
-Berkas sumber diagram dalam format DDR (Entity Relationship Diagram, Conceptual Data Model, Physical Data Model, dan Arsitektur Sistem) tersedia pada direktori `diagrams/`.
+### 2.3 Entity Relationship Diagram (ERD) dan Arsitektur Sistem
+
+<p align="center">
+  <img src="docs/diagrams/erd.png" alt="Entity Relationship Diagram Z-Store" width="850" />
+</p>
+
+<p align="center">
+  <img src="docs/diagrams/arch.png" alt="Arsitektur Sistem Z-Store" width="850" />
+</p>
+
+Berkas sumber diagram dalam format DDR (Entity Relationship Diagram, Conceptual Data Model, Physical Data Model, dan Arsitektur Sistem) tersedia pada direktori `docs/diagrams/`.
 
 ---
 
@@ -69,11 +89,13 @@ quiz-3-webpro/
 ├── render.yaml                             # Konfigurasi layanan web Render (Docker + /health)
 ├── build.ps1                               # Skrip kompilasi Java dengan javac dan pembuatan target/zstore.war
 ├── pom.xml                                 # Konfigurasi Maven WAR (Java 17, Servlet 3.1, JSTL 1.2, MySQL)
-├── diagrams/
-│   ├── erd.ddr                             # Chen ERD dalam sintaks DDR
-│   ├── cdm.ddr                             # Conceptual Data Model dalam sintaks DDR
-│   ├── pdm.ddr                             # Physical Data Model dalam sintaks DDR
-│   └── architecture.ddr                    # Diagram arsitektur sistem dalam sintaks DDR
+├── docs/
+│   ├── landing.png                         # Tangkapan layar halaman utama aplikasi
+│   └── diagrams/
+│       ├── erd.ddr / erd.png               # Chen ERD dalam sintaks DDR dan gambar ekspor
+│       ├── cdm.ddr / cdm.png               # Conceptual Data Model dalam sintaks DDR dan gambar ekspor
+│       ├── pdm.ddr / pdm.png               # Physical Data Model dalam sintaks DDR dan gambar ekspor
+│       └── architecture.ddr / arch.png     # Diagram arsitektur sistem dalam sintaks DDR dan gambar ekspor
 ├── sql/
 │   ├── schema.sql                          # Definisi tabel MySQL (zstore_jsp)
 │   └── seed.sql                            # Data awal cadangan: 8 provider, 3 level, 2 akun demo, 98 produk, 10 tag, 296 stok
@@ -164,10 +186,10 @@ Perintah di atas menghasilkan berkas `target/zstore.war`.
    - Karena `Dockerfile` menaruh aplikasi sebagai `ROOT.war`, alamat webhook pada Render adalah:
      `https://<nama-layanan>.onrender.com/webhooks/sumopod`
 
-### 6.1 CI/CD Deployment ke VPS (GitHub Actions, Docker Compose, dan Auto-HTTPS Caddy)
+### 6.1 CI/CD Deployment ke VPS (GitHub Actions, Docker Compose, Caddy, dan Cloudflare Tunnel)
 Repositori ini dilengkapi workflow GitHub Actions pada `.github/workflows/deploy.yml` yang otomatis membangun `target/zstore.war` dengan Maven setiap ada push ke branch `main` (atau secara manual via `workflow_dispatch`), lalu mengunggahnya ke `~/projek` pada VPS dan menjalankan `deploy/deploy.sh` bersama `docker-compose.yml` dan `deploy/Caddyfile`.
 
-Layanan Caddy bertindak sebagai reverse proxy pada port `80` dan `443` dengan sertifikat TLS otomatis dari Let's Encrypt (menggunakan variabel `APP_DOMAIN`, default `20-189-75-210.sslip.io`), kompresi `zstd` dan `gzip`, caching aset statis, serta header keamanan HTTP.
+Layanan publik diakses melalui Cloudflare Tunnel (`cloudflared`, dijalankan otomatis bila `CLOUDFLARE_TUNNEL_TOKEN` diisi pada `~/projek/.env`) dengan HTTPS otomatis pada `https://zstore.brahmanapriambudi.my.id/`, sementara Caddy tetap tersedia sebagai reverse proxy pada port `80` dan `443` dengan kompresi `zstd` dan `gzip`, caching aset statis, serta header keamanan HTTP.
 
 Secrets GitHub Actions yang dibutuhkan:
 - `VPS_HOST`: alamat IP atau domain VPS
