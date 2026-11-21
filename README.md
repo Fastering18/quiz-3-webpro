@@ -45,14 +45,10 @@ Aplikasi toko lisensi perangkat lunak digital berbasis Jakarta Server Pages (JSP
   <img src="docs/diagrams/pdm.png" alt="Physical Data Model Z-Store" width="850" />
 </p>
 
-### 2.3 Entity Relationship Diagram (ERD) dan Arsitektur Sistem
+### 2.3 Entity Relationship Diagram (ERD) 
 
 <p align="center">
-  <img src="docs/diagrams/erd.png" alt="Entity Relationship Diagram Z-Store" width="850" />
-</p>
-
-<p align="center">
-  <img src="docs/diagrams/arch.png" alt="Arsitektur Sistem Z-Store" width="850" />
+  <img src="docs/diagrams/erd.png" alt="Entity Relationship Diagram Z-Store" width="900" />
 </p>
 
 Berkas sumber diagram dalam format DDR (Entity Relationship Diagram, Conceptual Data Model, Physical Data Model, dan Arsitektur Sistem) tersedia pada direktori `docs/diagrams/`.
@@ -210,3 +206,7 @@ Berkas `~/projek/.env` dikelola langsung pada VPS dengan izin `chmod 600` dan ti
 5. Menambahkan penyimpanan gambar berbasis Neon Object Storage (S3) untuk produk, kategori/provider, dan foto profil pelanggan, dengan tetap menyimpan aset awal lokal sebagai cadangan.
 6. Menambahkan Panel Admin (`/admin`) dan Dashboard Pelanggan (`/dashboard`) untuk pengelolaan lengkap CRUD termasuk edit tag, input tag dipisahkan koma, filter multi-tag, dan sinkronisasi status transaksi.
 7. Memperbaiki referensi ID produk pada `Product_Tags` dan `Stocks` dari data awal sehingga seluruh 98 produk memiliki tag dan stok lisensi yang valid.
+
+---  
+
+2026 - Kelompok W for Webpro  
