@@ -12,7 +12,7 @@ A Java Server Pages (JSP) and Servlet port of `Website-Toko`, an online digital 
 
 | Member Name | Student ID | Percentage | Contribution |
 | :--- | :--- | :--- | :--- |
-| Muhammad Brahmana Priambudi | 5025251129 | 33% | BackEnd |
+| Muhammad Brahmana Priambudi | 5025251129 | 34% | BackEnd |
 | Budiman Setiono | 5025251128 | 33% | FrontEnd |
 | Muhammad Azka Asyrafany | 5025251131 | 33% | Checking & Reporting |
 
